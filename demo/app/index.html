@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskBoard — clr demo app</title>
+<style>
+  :root { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { margin: 0; background: #f4f5f7; color: #1f2430; display: grid; place-items: center; min-height: 100vh; }
+  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 28px; width: 340px; box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+  h1 { font-size: 20px; margin: 0 0 18px; }
+  label { display: block; font-size: 13px; margin: 12px 0 4px; color: #5a6372; }
+  input[type=email], input[type=password], input[type=text] { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #cfd4db; border-radius: 6px; font-size: 14px; }
+  button { margin-top: 16px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #3b5bdb; color: #fff; font-size: 14px; cursor: pointer; }
+  button:hover { background: #364fc7; }
+  .error { display: none; margin-top: 14px; padding: 10px; border-radius: 6px; background: #ffe3e3; color: #c92a2a; font-size: 13px; }
+  .error.visible { display: block; }
+  #todo-app { display: none; width: 380px; }
+  #todo-app.visible { display: block; }
+  .todo-row { display: flex; gap: 8px; }
+  .todo-row button { margin-top: 0; width: auto; padding: 9px 14px; }
+  ul { list-style: none; padding: 0; margin: 16px 0 8px; }
+  li { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid #eef0f3; font-size: 14px; }
+  li.completed span { text-decoration: line-through; color: #98a1ad; }
+  .count { font-size: 12px; color: #5a6372; }
+</style>
+</head>
+<body>
+
+<div class="card" id="login-card" data-cy="login-card">
+  <h1>Sign in to TaskBoard</h1>
+  <form id="login-form">
+    <label for="email">Email</label>
+    <input type="email" id="email" data-cy="login-email" autocomplete="off">
+    <label for="password">Password</label>
+    <input type="password" id="password" data-cy="login-password">
+    <button type="submit" data-cy="login-submit">Sign in</button>
+  </form>
+  <div class="error" id="login-error" data-cy="login-error">Invalid email or password.</div>
+</div>
+
+<div class="card" id="todo-app" data-cy="todo-app">
+  <h1>My tasks</h1>
+  <div class="todo-row">
+    <input type="text" id="new-todo" data-cy="new-todo" placeholder="What needs doing?">
+    <button id="add-todo" data-cy="add-todo">Add</button>
+  </div>
+  <ul id="todo-list" data-cy="todo-list"></ul>
+  <div class="count">open: <span id="open-count" data-cy="open-count">0</span></div>
+</div>
+
+<script>
+  var DEMO_USER = { email: 'demo@example.com', password: 'secret123' };
+
+  document.getElementById('login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = document.getElementById('email').value;
+    var password = document.getElementById('password').value;
+    var error = document.getElementById('login-error');
+    if (email === DEMO_USER.email && password === DEMO_USER.password) {
+      error.classList.remove('visible');
+      document.getElementById('login-card').style.display = 'none';
+      document.getElementById('todo-app').classList.add('visible');
+    } else {
+      error.classList.add('visible');
+    }
+  });
+
+  function refreshCount() {
+    var open = document.querySelectorAll('#todo-list li:not(.completed)').length;
+    document.getElementById('open-count').textContent = String(open);
+  }
+
+  function addTodo(text) {
+    if (!text.trim()) return;
+    var li = document.createElement('li');
+    li.setAttribute('data-cy', 'todo-item');
+    var box = document.createElement('input');
+    box.type = 'checkbox';
+    box.setAttribute('data-cy', 'todo-toggle');
+    box.addEventListener('change', function () {
+      li.classList.toggle('completed', box.checked);
+      refreshCount();
+    });
+    var span = document.createElement('span');
+    span.textContent = text.trim();
+    li.appendChild(box);
+    li.appendChild(span);
+    document.getElementById('todo-list').appendChild(li);
+    refreshCount();
+  }
+
+  document.getElementById('add-todo').addEventListener('click', function () {
+    var input = document.getElementById('new-todo');
+    addTodo(input.value);
+    input.value = '';
+    input.focus();
+  });
+  document.getElementById('new-todo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('add-todo').click();
+  });
+</script>
+</body>
+</html>

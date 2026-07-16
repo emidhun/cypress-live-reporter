@@ -10,5 +10,10 @@
   "scripts": {
     "test": "node tools/cypress-live-reporter/test/smoke.js",
     "test:pg": "node tools/cypress-live-reporter/test/integration-pg.js"
+  },
+  "devDependencies": {
+    "cypress": "^15.18.1",
+    "dotenv": "^17.4.2",
+    "pg": "^8.22.0"
   }
 }
