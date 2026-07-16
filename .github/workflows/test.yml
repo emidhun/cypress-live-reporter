@@ -1,0 +1,64 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    name: smoke (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check every JS file
+        run: git ls-files '*.js' | xargs -n1 node --check
+
+      - name: Validate example config parses
+        run: node -e "JSON.parse(require('fs').readFileSync('tools/cypress-live-reporter/clr.config.example.json','utf8'))"
+
+      - name: Smoke test (capture server, unreachable sink, self-disable)
+        run: node tools/cypress-live-reporter/test/smoke.js
+
+  postgres:
+    name: postgres integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: clr
+          POSTGRES_DB: clr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CLR_PG_URL: postgres://postgres:clr@localhost:5432/clr
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pg driver (the plugin's lazy dep for postgres mode)
+        run: npm install --no-save --no-package-lock pg@8
+
+      - name: Apply schema
+        run: psql "$CLR_PG_URL" -v ON_ERROR_STOP=1 -f tools/cypress-live-reporter/schema.sql
+
+      - name: Run lifecycle against real Postgres and assert views
+        run: node tools/cypress-live-reporter/test/integration-pg.js
