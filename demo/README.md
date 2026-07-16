@@ -18,9 +18,17 @@ echo 'CLR_PG_URL=postgres://postgres@localhost:5432/clr_demo' > .env
 # 2. the live app
 node demo/server.js                  # http://localhost:4477  (demo@example.com / secret123)
 
-# 3. the suite (second terminal)
+# 3. the live dashboard (second terminal)
+node demo/dashboard.js               # http://localhost:4488
+
+# 4. the suite (third terminal)
 npx cypress run
 ```
+
+Open http://localhost:4488 **before** starting the suite and watch runs, test
+states, spec progress, the raw event stream, and failure evidence (screenshot
+thumbnails + DOM snapshots) update on a 2s poll — the same queries a ToolJet
+dashboard would run.
 
 ## Watch it live
 
