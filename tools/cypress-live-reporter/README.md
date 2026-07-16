@@ -292,3 +292,7 @@ node tools/cypress-live-reporter/test/smoke.js
 ```
 
 Runs the full lifecycle against a local capture server (asserts payload shape, seq ordering, DOM gzip round-trip), then against an unreachable webhook (asserts the run can't crash or hang), then the no-sink self-disable path.
+
+## License
+
+[MIT](../../LICENSE)
