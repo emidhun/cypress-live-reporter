@@ -140,7 +140,9 @@ SELECT
   (payload->>'stepsBeforeFailure')::int    AS steps_before_failure,
   payload->>'command'                      AS command,
   (payload->>'width')::int                 AS width,
-  (payload->>'height')::int                AS height
+  (payload->>'height')::int                AS height,
+  payload->'commands'                      AS commands,   -- jsonb array (artifact:commands)
+  payload->>'error'                        AS error
 FROM clr_events
 WHERE type LIKE 'artifact:%';
 

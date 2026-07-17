@@ -23,11 +23,16 @@
   var liveTests = !cfg.events || cfg.events.liveTests !== false;
   var domEnabled = !cfg.dom || cfg.dom.enabled !== false;
   var backtrackDepth = Math.min(Math.max(0, (cfg.dom && cfg.dom.backtrackDepth) || 0), 5);
-  // commands that never change the AUT — not worth a snapshot
+  // command-log capture is cheap (no DOM) so it defaults ON
+  var commandsEnabled = !cfg.commands || cfg.commands.enabled !== false;
+  var commandsDepth = Math.min(Math.max(1, (cfg.commands && cfg.commands.depth) || 20), 50);
+  // commands that never change the AUT — not worth a DOM snapshot
   var BACKTRACK_SKIP = { task: 1, log: 1, wrap: 1, then: 1, wait: 1 };
 
   var buffer = [];
-  var ring = [];
+  var ring = []; // DOM snapshots (backtrack)
+  var cmdRing = []; // command log
+  var currentCmd = null; // command in flight (the one that fails)
 
   function push(type, payload) {
     try {
@@ -75,6 +80,50 @@
     } catch (e) {
       return null;
     }
+  }
+
+  /* ---- command-log helpers -------------------------------------------- */
+
+  function cmdGet(command, key) {
+    try {
+      if (command && typeof command.get === 'function') return command.get(key);
+      return command && command.attributes && command.attributes[key];
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  // Compact, safe stringification of a command's arguments (a selector, the
+  // typed text, etc.). Never throws; caps length so a huge arg can't bloat the
+  // payload.
+  function argStr(args) {
+    try {
+      if (!args || !args.length) return '';
+      return args
+        .map(function (a) {
+          if (a == null) return String(a);
+          var t = typeof a;
+          if (t === 'string') return a.length > 120 ? a.slice(0, 120) + '…' : a;
+          if (t === 'number' || t === 'boolean') return String(a);
+          if (t === 'function') return '[fn]';
+          if (a.jquery || a.nodeType) return '[element]';
+          try {
+            var s = JSON.stringify(a);
+            if (!s) return '[object]';
+            return s.length > 120 ? s.slice(0, 120) + '…' : s;
+          } catch (e) {
+            return '[object]';
+          }
+        })
+        .join(', ');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // our own cy.task('clr:events', ...) flush must not appear in the log
+  function isOwnTask(name, args) {
+    return name === 'task' && args && args[0] === 'clr:events';
   }
 
   /**
@@ -127,6 +176,8 @@
   beforeEach(function () {
     try {
       ring = [];
+      cmdRing = [];
+      currentCmd = null;
       if (!liveTests) return;
       var t = this.currentTest;
       if (!t) return;
@@ -167,68 +218,130 @@
     }
   });
 
-  /* ---- failure evidence: DOM snapshot (+ optional backtrack ring) ------ */
+  /* ---- command log (cheap, no DOM) ------------------------------------ */
 
-  if (domEnabled) {
+  if (commandsEnabled) {
+    Cypress.on('command:start', function (command) {
+      try {
+        var name = cmdGet(command, 'name');
+        var args = cmdGet(command, 'args') || [];
+        if (!name || isOwnTask(name, args)) return;
+        currentCmd = { name: name, args: argStr(args), startedAt: new Date().getTime() };
+      } catch (e) {
+        /* noop */
+      }
+    });
+
+    Cypress.on('command:end', function (command) {
+      try {
+        var name = cmdGet(command, 'name');
+        var args = cmdGet(command, 'args') || [];
+        if (!name || isOwnTask(name, args)) return;
+        var entry = {
+          name: name,
+          args: argStr(args),
+          state: cmdGet(command, 'state') || 'passed',
+        };
+        if (currentCmd && currentCmd.name === name) {
+          entry.ms = new Date().getTime() - currentCmd.startedAt;
+        }
+        currentCmd = null;
+        cmdRing.push(entry);
+        if (cmdRing.length > commandsDepth) cmdRing.shift();
+      } catch (e) {
+        /* skipped command */
+      }
+    });
+  }
+
+  /* ---- failure evidence: command log + DOM snapshot (+ backtrack) ----- */
+
+  if (domEnabled || commandsEnabled) {
     Cypress.on('fail', function (err, runnable) {
       try {
         var testId = testIdFor(runnable);
         var attempt = attemptOf(runnable);
 
-        var snap = serializeDom();
-        if (snap) {
-          push(
-            'artifact:dom',
-            Object.assign(
-              { testId: testId, attempt: attempt, error: (err && err.message) || null, spec: specRelative() },
-              snap
-            )
-          );
+        // command log — the last N commands, plus the one that was in flight
+        // when the failure happened (command:end never fired for it)
+        if (commandsEnabled) {
+          var cmds = cmdRing.slice();
+          if (currentCmd) {
+            cmds.push({
+              name: currentCmd.name,
+              args: currentCmd.args,
+              state: 'failed',
+              ms: new Date().getTime() - currentCmd.startedAt,
+            });
+          }
+          push('artifact:commands', {
+            testId: testId,
+            attempt: attempt,
+            spec: specRelative(),
+            error: (err && err.message) || null,
+            commands: cmds,
+          });
         }
 
-        if (backtrackDepth > 0 && ring.length) {
-          var total = ring.length;
-          for (var i = 0; i < ring.length; i++) {
+        if (domEnabled) {
+          var snap = serializeDom();
+          if (snap) {
             push(
-              'artifact:dom-backtrack',
+              'artifact:dom',
               Object.assign(
-                {
-                  testId: testId,
-                  attempt: attempt,
-                  command: ring[i].command,
-                  stepsBeforeFailure: total - i,
-                  spec: specRelative(),
-                },
-                ring[i].snap
+                { testId: testId, attempt: attempt, error: (err && err.message) || null, spec: specRelative() },
+                snap
               )
             );
           }
-          ring = [];
+
+          if (backtrackDepth > 0 && ring.length) {
+            var total = ring.length;
+            for (var i = 0; i < ring.length; i++) {
+              push(
+                'artifact:dom-backtrack',
+                Object.assign(
+                  {
+                    testId: testId,
+                    attempt: attempt,
+                    command: ring[i].command,
+                    stepsBeforeFailure: total - i,
+                    spec: specRelative(),
+                  },
+                  ring[i].snap
+                )
+              );
+            }
+          }
         }
+
+        ring = [];
+        cmdRing = [];
+        currentCmd = null;
       } catch (e) {
         /* evidence collection must never mask the real failure */
       }
       // ALWAYS rethrow — this reporter never swallows failures
       throw err;
     });
+  }
 
-    if (backtrackDepth > 0) {
-      Cypress.on('command:end', function (command) {
-        try {
-          var name =
-            command && typeof command.get === 'function'
-              ? command.get('name')
-              : command && command.attributes && command.attributes.name;
-          if (!name || BACKTRACK_SKIP[name]) return;
-          var snap = serializeDom();
-          if (!snap) return;
-          ring.push({ command: name, snap: snap });
-          if (ring.length > backtrackDepth) ring.shift();
-        } catch (e) {
-          /* skipped snapshot */
-        }
-      });
-    }
+  if (domEnabled && backtrackDepth > 0) {
+    Cypress.on('command:end', function (command) {
+      try {
+        var name =
+          command && typeof command.get === 'function'
+            ? command.get('name')
+            : command && command.attributes && command.attributes.name;
+        if (!name || BACKTRACK_SKIP[name]) return;
+        var snap = serializeDom();
+        if (!snap) return;
+        ring.push({ command: name, snap: snap });
+        if (ring.length > backtrackDepth) ring.shift();
+      } catch (e) {
+        /* skipped snapshot */
+      }
+    });
   }
 
   /* ---- end-of-spec flush ------------------------------------------------ */

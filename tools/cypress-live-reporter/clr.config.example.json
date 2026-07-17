@@ -21,6 +21,13 @@
     "_storage_doc": "\"db\" = base64 inside the event payload (default). \"s3\" = upload, payload carries `url` instead."
   },
 
+  "commands": {
+    "enabled": true,
+    "_enabled_doc": "On failure, ship the last N Cypress commands (name + args + pass/fail + ms) as an artifact:commands event — a lightweight command log, like Cypress Cloud. Cheap (no DOM), so it defaults ON.",
+    "depth": 20,
+    "_depth_doc": "How many commands to keep in the ring before failure (1–50)."
+  },
+
   "dom": {
     "enabled": true,
     "_enabled_doc": "Serialize the DOM at the moment of failure (artifact:dom).",

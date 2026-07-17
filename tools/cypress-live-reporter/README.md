@@ -58,6 +58,8 @@ Everything is **ON by default**. Create `clr.config.json` in your project root o
 | `events.liveTests` | `true` | `test:start` / `test:attempt:end` (browser side, live per it-block). |
 | `screenshots.enabled` | `true` | Ship failure screenshots. |
 | `screenshots.storage` | `"db"` | `"db"` = base64 in payload · `"s3"` = upload, payload carries `url`. |
+| `commands.enabled` | `true` | On failure, ship the last N commands (name + args + state + ms) — a command log like Cypress Cloud. Cheap (no DOM). |
+| `commands.depth` | `20` | How many commands to keep before failure (1–50). |
 | `dom.enabled` | `true` | Serialize the DOM at the moment of failure. |
 | `dom.storage` | `"db"` | Independent of `screenshots.storage`. |
 | `dom.backtrackDepth` | `0` | 1–5: also keep DOM snapshots of the last N commands before failure. **Keep 0 in CI gates** (see Performance). |
@@ -120,6 +122,7 @@ Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on t
 | `artifact:screenshot` | Node | `after:screenshot` | `testId`, `name`, `attempt` (parsed from `"(attempt N)"` in the path), `width`, `height`, `takenAt`, `base64` **or** `url` |
 | `artifact:dom` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, `pageUrl`, `viewportWidth/Height`, `htmlGzipBase64` **or** `url`. The failure is always rethrown — never swallowed. |
 | `artifact:dom-backtrack` | browser | on fail, if `backtrackDepth > 0` | One event per ring snapshot: `command`, `stepsBeforeFailure` (1 = last command before failure), plus the DOM fields above |
+| `artifact:commands` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, and `commands[]` — the last N commands, each `{ name, args, state, ms }`. The in-flight command at failure is the final entry with `state: "failed"`. |
 
 CI metadata is read from GitHub Actions (`GITHUB_REF_NAME`, `GITHUB_SHA`, run URL) and GitLab CI (`CI_COMMIT_REF_NAME`, `CI_COMMIT_SHA`, `CI_JOB_URL`) env vars, plus the machine hostname.
 
@@ -156,6 +159,7 @@ setupNodeEvents(on, config) {
 ## Performance notes
 
 - The live per-test feed costs **~2 `cy.task` round-trips per test ≈ 10–30 ms** — negligible for most suites; set `events.liveTests: false` if you're counting milliseconds.
+- **The command log is cheap** (`commands.enabled`): capturing command name + args on `command:start`/`command:end` is microseconds — no DOM work — so it stays on in CI. It's the low-cost alternative to backtracking when you just want "what ran before it broke".
 - **DOM backtracking is the expensive feature**: serializing the DOM on every command costs **10–50 ms per command** depending on page size. Keep `backtrackDepth: 0` in CI gates; turn it on (max 5) when actively debugging a flaky test.
 - All delivery is fire-and-forget behind a concurrency gate (`maxParallelUploads`, FIFO overflow). The only wait in the whole plugin is the end-of-run drain, hard-capped at `finalFlushMs`.
 - An unreachable sink cannot hang the run: webhook sends abort at `timeoutMs`; the pg pool uses `connectionTimeoutMillis: 3000` + statement timeouts.
