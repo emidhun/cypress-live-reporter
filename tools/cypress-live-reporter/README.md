@@ -115,6 +115,7 @@ Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on t
 | --- | --- | --- | --- |
 | `run:start` | Node | `before:run` | `specs[]`, `totalSpecs`, `browser{name,version}`, `cypressVersion`, `ci{branch,commit,buildUrl,provider,machine}` |
 | `spec:start` | Node | `before:spec` | `spec` (relative path) |
+| `spec:tests` | browser | root `before()` | `spec`, `totalTests`, `tests[]` (`{ testId, title }` for every it-block) — the roster announced up front, before any test runs, so a dashboard can show "0 / N done" immediately. Surfaced as `clr_specs.planned_tests` / `planned_test_ids`. |
 | `spec:end` | Node | `after:spec` | `stats{duration,tests,passes,failures,pending,skipped}`, `tests[]{testId,state,duration,attempts,displayError}`, `video` |
 | `run:end` | Node | `after:run` | `status` passed/failed, `totalDuration`, `totals{specs,tests,passed,failed,pending,skipped}` |
 | `test:start` | browser | global `beforeEach` | `testId` (full title chain, `" > "`-joined), `title`, `attempt`, `state:"running"`, `spec`. Flushed immediately — this is the live per-it-block signal. |
@@ -166,7 +167,7 @@ setupNodeEvents(on, config) {
 
 ## Honest limitations
 
-- **Tests skipped by a hook failure** don't emit `test:start`/`test:attempt:end` (Cypress never runs them) — they only appear in the `spec:end` per-test array as skipped.
+- **Tests skipped by a hook failure** don't emit `test:start`/`test:attempt:end` (Cypress never runs them). They still appear up front in the `spec:tests` roster (so the dashboard can show them as never-started) and in the `spec:end` per-test array as skipped.
 - **The DOM snapshot is static HTML.** Selectors are queryable and styles mostly render, but there's no JavaScript state, no shadow DOM contents, and no cross-origin iframe contents.
 - **A killed runner** (OOM, cancelled job) never sends `run:end`. The `clr_runs` view marks such runs `stale` once no event has arrived for 3 minutes.
 - Webhook mode has no ordering/dedup guarantees on your receiver — use `(runId, seq)` yourself; postgres mode is idempotent via `ON CONFLICT (run_id, seq) DO NOTHING`.

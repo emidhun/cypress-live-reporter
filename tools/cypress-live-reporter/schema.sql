@@ -111,13 +111,22 @@ SELECT
   (s.payload->'stats'->>'pending')::int    AS pending,
   (s.payload->'stats'->>'skipped')::int    AS skipped,
   s.payload->>'video'                      AS video,
-  s.ts                                     AS updated_at
+  s.ts                                     AS updated_at,
+  -- roster announced up front by spec:tests (browser, once Mocha parses the file)
+  (m.payload->>'totalTests')::int          AS planned_tests,
+  m.payload->'tests'                       AS planned_test_ids
 FROM (
   SELECT DISTINCT ON (run_id, payload->>'spec') *
   FROM clr_events
   WHERE type IN ('spec:start', 'spec:end')
   ORDER BY run_id, payload->>'spec', seq DESC
-) s;
+) s
+LEFT JOIN (
+  SELECT DISTINCT ON (run_id, payload->>'spec') run_id, payload
+  FROM clr_events
+  WHERE type = 'spec:tests'
+  ORDER BY run_id, payload->>'spec', seq DESC
+) m ON m.run_id = s.run_id AND m.payload->>'spec' = s.payload->>'spec';
 
 ------------------------------------------------------------------------------
 -- clr_artifacts — every artifact event (screenshots, DOM snapshots,

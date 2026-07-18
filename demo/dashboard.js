@@ -139,7 +139,7 @@ const PAGE = `<!DOCTYPE html>
   .pill.failed { background: rgba(244,99,110,.15); color: var(--red); }
   .pill.running { background: rgba(90,162,247,.15); color: var(--blue); animation: pulse 1.2s infinite; }
   .pill.retrying { background: rgba(245,185,68,.15); color: var(--amber); }
-  .pill.stale, .pill.unknown, .pill.pending { background: rgba(125,135,153,.15); color: var(--dim); }
+  .pill.stale, .pill.unknown, .pill.pending, .pill.queued { background: rgba(125,135,153,.15); color: var(--dim); }
   @keyframes pulse { 50% { opacity: .45; } }
   .run { padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .run:hover { background: rgba(255,255,255,.03); }
@@ -213,18 +213,36 @@ const PAGE = `<!DOCTYPE html>
         + esc(r.browser || '') + ' · ' + new Date(r.started_at).toLocaleTimeString() + '</div></div>';
     }).join('') || '<div class="run">no runs yet</div>';
 
+    // tests that have started (from clr_tests_live)
+    var startedIds = {};
+    st.tests.forEach(function (t) { startedIds[t.test_id] = 1; });
+    // roster announced by spec:tests minus the ones already started = queued
+    var queued = [];
+    st.specs.forEach(function (s) {
+      (s.planned_test_ids || []).forEach(function (pt) {
+        if (!startedIds[pt.testId]) queued.push({ test_id: pt.testId });
+      });
+    });
+    var startedRows = st.tests.map(function (t) {
+      return '<tr><td>' + esc(t.test_id)
+        + (t.error ? '<div class="err">' + esc(t.error.slice(0, 160)) + '</div>' : '')
+        + '</td><td>' + pill(t.state) + '</td><td>' + esc(t.attempt) + '</td><td>' + ms(t.duration_ms) + '</td></tr>';
+    }).join('');
+    var queuedRows = queued.map(function (q) {
+      return '<tr style="opacity:.6"><td>' + esc(q.test_id)
+        + '</td><td>' + pill('queued') + '</td><td></td><td></td></tr>';
+    }).join('');
     document.getElementById('tests').innerHTML =
-      '<tr><th>test</th><th>state</th><th>att</th><th>time</th></tr>' +
-      st.tests.map(function (t) {
-        return '<tr><td>' + esc(t.test_id)
-          + (t.error ? '<div class="err">' + esc(t.error.slice(0, 160)) + '</div>' : '')
-          + '</td><td>' + pill(t.state) + '</td><td>' + esc(t.attempt) + '</td><td>' + ms(t.duration_ms) + '</td></tr>';
-      }).join('');
+      '<tr><th>test (' + st.tests.length + ' run · ' + queued.length + ' queued)</th><th>state</th><th>att</th><th>time</th></tr>'
+      + startedRows + queuedRows;
 
     document.getElementById('specs').innerHTML =
-      '<tr><th>spec</th><th>status</th><th>pass</th><th>fail</th><th>time</th></tr>' +
+      '<tr><th>spec</th><th>status</th><th>done/planned</th><th>pass</th><th>fail</th><th>time</th></tr>' +
       st.specs.map(function (s) {
-        return '<tr><td>' + esc(s.spec) + '</td><td>' + pill(s.status) + '</td><td>'
+        var done = (s.passes || 0) + (s.failures || 0);
+        var planned = s.planned_tests == null ? '?' : s.planned_tests;
+        return '<tr><td>' + esc(s.spec) + '</td><td>' + pill(s.status) + '</td>'
+          + '<td>' + done + ' / ' + planned + '</td><td>'
           + (s.passes == null ? '' : s.passes) + '</td><td>' + (s.failures == null ? '' : s.failures)
           + '</td><td>' + ms(s.duration_ms) + '</td></tr>';
       }).join('');

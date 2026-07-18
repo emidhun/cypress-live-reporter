@@ -74,6 +74,36 @@
     }
   }
 
+  // Walk Mocha's suite tree (fully parsed by the time any before() runs) and
+  // collect every it-block, so we can announce the roster up front.
+  function collectTests(suite, acc) {
+    try {
+      (suite.tests || []).forEach(function (t) {
+        acc.push({ testId: testIdFor(t), title: t.title });
+      });
+      (suite.suites || []).forEach(function (s) {
+        collectTests(s, acc);
+      });
+    } catch (e) {
+      /* partial roster is fine */
+    }
+    return acc;
+  }
+
+  function rootSuite(ctx) {
+    var root = null;
+    try {
+      root = Cypress.mocha.getRunner().suite;
+    } catch (e) {
+      /* fall back to walking up from the hook's context */
+    }
+    if (!root && ctx && ctx.test) {
+      root = ctx.test.parent;
+      while (root && root.parent) root = root.parent;
+    }
+    return root;
+  }
+
   function specRelative() {
     try {
       return (Cypress.spec && Cypress.spec.relative) || null;
@@ -170,6 +200,27 @@
       return null;
     }
   }
+
+  /* ---- spec roster: announce all it-blocks up front ------------------- */
+
+  before(function () {
+    try {
+      if (!liveTests) return;
+      var root = rootSuite(this);
+      if (!root) return;
+      var tests = collectTests(root, []);
+      // one-time manifest per spec — lets a dashboard show "0 / N done"
+      // the instant a spec starts, before any test runs
+      push('spec:tests', {
+        spec: specRelative(),
+        tests: tests,
+        totalTests: tests.length,
+      });
+      flush();
+    } catch (e) {
+      /* never fail the spec */
+    }
+  });
 
   /* ---- live per-test events ------------------------------------------- */
 
