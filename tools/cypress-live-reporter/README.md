@@ -113,19 +113,19 @@ Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on t
 
 | Event | Origin | Fired on | Payload highlights |
 | --- | --- | --- | --- |
-| `run:start` | Node | `before:run` | `specs[]`, `totalSpecs`, `browser{name,version}`, `cypressVersion`, `ci{branch,commit,buildUrl,provider,machine}` |
+| `run:start` | Node | `before:run` | `specs[]`, `totalSpecs`, `browser{name,version}`, `cypressVersion`, `ci{branch,commit,pr,triggeredBy,buildUrl,provider,machine}` |
 | `spec:start` | Node | `before:spec` | `spec` (relative path) |
 | `spec:tests` | browser | root `before()` | `spec`, `totalTests`, `tests[]` (`{ testId, title }` for every it-block) — the roster announced up front, before any test runs, so a dashboard can show "0 / N done" immediately. Surfaced as `clr_specs.planned_tests` / `planned_test_ids`. |
 | `spec:end` | Node | `after:spec` | `stats{duration,tests,passes,failures,pending,skipped}`, `tests[]{testId,state,duration,attempts,displayError}`, `video` |
 | `run:end` | Node | `after:run` | `status` passed/failed, `totalDuration`, `totals{specs,tests,passed,failed,pending,skipped}` |
 | `test:start` | browser | global `beforeEach` | `testId` (full title chain, `" > "`-joined), `title`, `attempt`, `state:"running"`, `spec`. Flushed immediately — this is the live per-it-block signal. |
 | `test:attempt:end` | browser | global `afterEach` | `state`, `attempt`, `willRetry`, `duration`, `error`, `spec` |
-| `artifact:screenshot` | Node | `after:screenshot` | `testId`, `name`, `attempt` (parsed from `"(attempt N)"` in the path), `width`, `height`, `takenAt`, `base64` **or** `url` |
+| `artifact:screenshot` | Node | `after:screenshot` | `testId` (from the running test — reliable even when Cypress sends empty titles), `name`, `attempt`, `width`, `height`, `takenAt`, `base64` **or** `url` |
 | `artifact:dom` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, `pageUrl`, `viewportWidth/Height`, `htmlGzipBase64` **or** `url`. The failure is always rethrown — never swallowed. |
 | `artifact:dom-backtrack` | browser | on fail, if `backtrackDepth > 0` | One event per ring snapshot: `command`, `stepsBeforeFailure` (1 = last command before failure), plus the DOM fields above |
 | `artifact:commands` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, and `commands[]` — the last N commands, each `{ name, args, state, ms }`. The in-flight command at failure is the final entry with `state: "failed"`. |
 
-CI metadata is read from GitHub Actions (`GITHUB_REF_NAME`, `GITHUB_SHA`, run URL) and GitLab CI (`CI_COMMIT_REF_NAME`, `CI_COMMIT_SHA`, `CI_JOB_URL`) env vars, plus the machine hostname.
+CI metadata is read from GitHub Actions (`GITHUB_REF_NAME`, `GITHUB_SHA`, `GITHUB_ACTOR`, PR number from `GITHUB_REF` = `refs/pull/<n>/merge`, run URL) and GitLab CI (`CI_COMMIT_REF_NAME`, `CI_COMMIT_SHA`, `GITLAB_USER_LOGIN`, `CI_MERGE_REQUEST_IID`, `CI_JOB_URL`) env vars, plus the machine hostname. Surfaced on `clr_runs` as `pr` / `triggered_by`.
 
 ### Parallel CI machines
 

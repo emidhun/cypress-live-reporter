@@ -47,7 +47,9 @@ SELECT
   (e.payload->'totals'->>'pending')::int   AS pending,
   (e.payload->'totals'->>'skipped')::int   AS skipped,
   (e.payload->>'totalDuration')::bigint    AS duration_ms,
-  l.last_ts                                AS last_event_at
+  l.last_ts                                AS last_event_at,
+  s.payload->'ci'->>'pr'                   AS pr,
+  s.payload->'ci'->>'triggeredBy'          AS triggered_by
 FROM (
   SELECT DISTINCT ON (run_id) *
   FROM clr_events

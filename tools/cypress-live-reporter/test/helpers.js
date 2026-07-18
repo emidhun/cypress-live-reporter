@@ -82,8 +82,10 @@ async function fireLifecycle(handlers, screenshotPath) {
 
   const details = {
     path: screenshotPath,
-    titles: ['login', 'shows an error on bad password'],
-    name: 'bad-password',
+    // real Cypress hands failure screenshots EMPTY titles — the plugin must
+    // still attribute this to the running test via its test:start tracking
+    titles: [],
+    name: 'login -- shows an error on bad password (failed) (attempt 2)',
     dimensions: { width: 1, height: 1 },
     takenAt: new Date().toISOString(),
     specName: 'login.cy.js',

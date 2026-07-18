@@ -68,6 +68,8 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
   process.env.CLR_WEBHOOK_URL = `http://127.0.0.1:${port}/hook`;
   process.env.CLR_WEBHOOK_TOKEN = 'secret-token';
   process.env.CLR_RUN_ID = RUN_ID;
+  process.env.GITHUB_ACTOR = 'octocat';
+  process.env.GITHUB_REF = 'refs/pull/42/merge';
   delete process.env.CLR_PG_URL;
 
   const { on, handlers } = fakeRegistrar();
@@ -123,6 +125,11 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
     assert.strictEqual(ev.browser.name, 'chrome');
     assert.strictEqual(typeof ev.ci.machine, 'string');
   });
+  ok('run:start ci carries PR number + triggeredBy', () => {
+    const ev = byType['run:start'][0];
+    assert.strictEqual(ev.ci.pr, '42', 'PR parsed from refs/pull/42/merge');
+    assert.strictEqual(ev.ci.triggeredBy, 'octocat', 'from GITHUB_ACTOR');
+  });
   ok('artifact:dom was gzipped on Node (raw html removed, round-trips)', () => {
     const ev = byType['artifact:dom'][0];
     assert.strictEqual(ev.html, undefined);
@@ -130,9 +137,10 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
     assert.ok(html.includes('<h1>boom</h1>'));
     assert.strictEqual(ev.pageUrl, 'http://localhost:3000/login');
   });
-  ok('artifact:screenshot has base64 + parsed metadata', () => {
+  ok('artifact:screenshot maps to it-block + attempt despite empty titles', () => {
     const ev = byType['artifact:screenshot'][0];
     assert.strictEqual(Buffer.from(ev.base64, 'base64').length, PNG_BYTES.length);
+    // titles were EMPTY — testId must come from the running test (test:start)
     assert.strictEqual(ev.testId, 'login > shows an error on bad password');
     assert.strictEqual(ev.attempt, 2, 'attempt parsed from "(attempt 2)" in path');
     assert.strictEqual(ev.width, 1);
@@ -151,6 +159,8 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
 
   delete process.env.CLR_RUN_ID;
   delete process.env.CLR_WEBHOOK_TOKEN;
+  delete process.env.GITHUB_ACTOR;
+  delete process.env.GITHUB_REF;
 }
 
 async function scenarioUnreachable(projectRoot, screenshotPath) {

@@ -210,7 +210,10 @@ const PAGE = `<!DOCTYPE html>
             ? '<b class="g">' + r.passed + ' passed</b> · <b class="r">' + r.failed + ' failed</b> · ' + ms(r.duration_ms)
             : (r.total_specs || '?') + ' specs') + '</div>'
         + '<div class="meta">' + esc(r.run_id.slice(0, 8)) + ' · ' + esc(r.machine || '') + ' · '
-        + esc(r.browser || '') + ' · ' + new Date(r.started_at).toLocaleTimeString() + '</div></div>';
+        + esc(r.browser || '') + ' · ' + new Date(r.started_at).toLocaleTimeString() + '</div>'
+        + (r.pr || r.triggered_by ? '<div class="meta">'
+            + (r.pr ? 'PR #' + esc(r.pr) + ' ' : '') + (r.triggered_by ? '· by ' + esc(r.triggered_by) : '')
+            + '</div>' : '') + '</div>';
     }).join('') || '<div class="run">no runs yet</div>';
 
     // tests that have started (from clr_tests_live)
@@ -269,8 +272,9 @@ const PAGE = `<!DOCTYPE html>
       var q = 'run_id=' + st.selected + '&seq=' + a.seq;
       if (a.type === 'artifact:screenshot') {
         var src = a.artifact_url || ('/api/screenshot?' + q);
+        var who = a.test_id ? esc(a.test_id.split(' > ').pop()) : '(unmapped)';
         return '<div class="shot"><a href="' + src + '" target="_blank"><img src="' + src + '"></a>'
-          + '<div class="cap">screenshot · attempt ' + esc(a.attempt) + '</div></div>';
+          + '<div class="cap">' + who + ' · attempt ' + esc(a.attempt) + '</div></div>';
       }
       var href = a.artifact_url || ('/api/dom?' + q);
       var label = a.type === 'artifact:dom-backtrack'

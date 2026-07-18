@@ -76,10 +76,19 @@ function ciMetadata() {
   } else if (env.CI_JOB_URL) {
     buildUrl = env.CI_JOB_URL;
   }
+  // GitHub exposes the PR number only inside GITHUB_REF (refs/pull/<n>/merge)
+  // on pull_request events; GitLab has a dedicated var.
+  let pr = null;
+  const ghPr = /^refs\/pull\/(\d+)\//.exec(env.GITHUB_REF || '');
+  if (ghPr) pr = ghPr[1];
+  else if (env.CI_MERGE_REQUEST_IID) pr = env.CI_MERGE_REQUEST_IID;
   return {
     branch: env.GITHUB_REF_NAME || env.CI_COMMIT_REF_NAME || null,
     commit: env.GITHUB_SHA || env.CI_COMMIT_SHA || null,
     buildUrl,
+    pr,
+    triggeredBy:
+      env.GITHUB_ACTOR || env.GITLAB_USER_LOGIN || env.CI_COMMIT_AUTHOR || null,
     provider: env.GITHUB_ACTIONS ? 'github' : env.GITLAB_CI ? 'gitlab' : null,
     machine: os.hostname(),
   };
@@ -137,6 +146,11 @@ function setup(on, config, opts) {
   // env override lets parallel CI machines report into one shared run
   const runId = process.env.CLR_RUN_ID || randomUUID();
   let seq = 0;
+  // the test currently executing, learned from the browser's test:start
+  // stream — Cypress runs one test at a time per process, so this reliably
+  // tells after:screenshot which it-block + attempt a screenshot belongs to
+  // even when Cypress hands us empty titles.
+  let lastTest = { testId: null, attempt: 1 };
 
   // seq is assigned here, on the Node side, for every event — including
   // browser-originated ones — so (run_id, seq) is a true monotonic order.
@@ -253,11 +267,18 @@ function setup(on, config, opts) {
         const filePath = details && details.path;
         if (filePath) {
           const buf = fs.readFileSync(filePath);
+          const titles = (details && details.titles) || [];
+          // Cypress often hands failure screenshots empty titles — fall back
+          // to the currently-running test so a screenshot always maps to its
+          // it-block. Prefer the exact attempt from the filename, else the
+          // running test's attempt.
+          const testId = titles.length ? titles.join(' > ') : lastTest.testId || '';
           const attemptMatch = /\(attempt (\d+)\)/.exec(filePath);
+          const attempt = attemptMatch ? parseInt(attemptMatch[1], 10) : lastTest.attempt || 1;
           emit('artifact:screenshot', {
-            testId: ((details && details.titles) || []).join(' > '),
+            testId: testId,
             name: (details && details.name) || path.basename(filePath, path.extname(filePath)),
-            attempt: attemptMatch ? parseInt(attemptMatch[1], 10) : 1,
+            attempt: attempt,
             width: details && details.dimensions && details.dimensions.width,
             height: details && details.dimensions && details.dimensions.height,
             takenAt: details && details.takenAt,
@@ -280,6 +301,10 @@ function setup(on, config, opts) {
         const events = Array.isArray(batch) ? batch : [];
         for (const ev of events) {
           if (!ev || typeof ev.type !== 'string') continue;
+          // track the running test so after:screenshot can attribute correctly
+          if (ev.type === 'test:start' && ev.testId) {
+            lastTest = { testId: ev.testId, attempt: ev.attempt || 1 };
+          }
           if (
             (ev.type === 'artifact:dom' || ev.type === 'artifact:dom-backtrack') &&
             typeof ev.html === 'string'
