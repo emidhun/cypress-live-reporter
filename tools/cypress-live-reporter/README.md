@@ -2,6 +2,8 @@
 
 [![test](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml/badge.svg)](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml)
 
+> **This is the package reference** (install, config, event & dashboard details). For the project overview and the concept guides, start at the [root README](../../README.md) and [docs/](../../docs/): [Architecture](../../docs/ARCHITECTURE.md) · [Events](../../docs/EVENTS.md) · [CI](../../docs/CI.md) · [Dashboard](../../docs/DASHBOARD.md).
+
 Self-hosted live reporting for Cypress. Streams run/spec/test lifecycle events and failure evidence (screenshots + a serialized DOM snapshot) to **Postgres** or a **webhook**, so you can build a real-time dashboard (e.g. in ToolJet) on a free stack — a replacement for Cypress Cloud's live status and failure artifacts.
 
 - **Zero-config**: two `require` lines + one env var. Every feature defaults to **ON**.
