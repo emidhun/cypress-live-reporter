@@ -46,7 +46,7 @@ async function stateFor(runId) {
     pool.query('SELECT * FROM clr_specs WHERE run_id = $1 ORDER BY spec', [selected]),
     pool.query(
       `SELECT seq, type, attempt, test_id, name, command, steps_before_failure, page_url,
-              artifact_url, commands, total_commands, error,
+              artifact_url, commands, total_commands, console_logs, total_logs, stdout, error, spec,
               (screenshot_base64 IS NOT NULL) AS has_screenshot,
               (dom_gzip_base64 IS NOT NULL)   AS has_dom
        FROM clr_artifacts WHERE run_id = $1 ORDER BY seq`,
@@ -174,6 +174,14 @@ const PAGE = `<!DOCTYPE html>
   .cmd .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); align-self: center; }
   .cmd.failed .dot { background: var(--red); }
   .cmd.pending .dot, .cmd.queued .dot { background: var(--amber); }
+  .con { font-family: var(--mono); font-size: 12px; padding: 2px 0; display: flex; gap: 8px; }
+  .con .idx { color: var(--dim); width: 26px; text-align: right; flex: none; }
+  .con .lv { flex: none; width: 44px; text-transform: uppercase; font-size: 10px; padding-top: 1px; }
+  .con.log .lv { color: var(--dim); } .con.info .lv { color: var(--blue); }
+  .con.warn .lv { color: var(--amber); } .con.error .lv { color: var(--red); } .con.debug .lv { color: var(--dim); }
+  .con .tx { color: var(--text); word-break: break-word; }
+  .con.error .tx { color: var(--red); }
+  .term { font-family: var(--mono); font-size: 11px; white-space: pre-wrap; word-break: break-word; background: #0b0e13; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; max-height: 300px; overflow: auto; color: #c7ced9; }
 </style>
 </head>
 <body>
@@ -188,6 +196,8 @@ const PAGE = `<!DOCTYPE html>
     <div class="panel"><h2>Tests (live)</h2><div class="body"><table id="tests"></table></div></div>
     <div class="panel"><h2>Specs</h2><div class="body"><table id="specs"></table></div></div>
     <div class="panel"><h2>Command log (last commands before each failure)</h2><div id="commands"></div></div>
+    <div class="panel"><h2>Browser console (app logs before each failure)</h2><div id="console"></div></div>
+    <div class="panel"><h2>Terminal output (node/task stdout · failing specs)</h2><div id="terminal"></div></div>
     <div class="panel"><h2>Failure evidence</h2><div class="shots" id="artifacts"></div></div>
   </div>
   <div class="panel"><h2>Event stream</h2><div class="log" id="log"></div></div>
@@ -269,8 +279,30 @@ const PAGE = `<!DOCTYPE html>
         + '</div>' + rows + '</div>';
     }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no command logs — nothing has failed in this run</div>';
 
+    // browser console (artifact:console), grouped per failed test
+    var conArts = st.artifacts.filter(function (a) { return a.type === 'artifact:console'; });
+    document.getElementById('console').innerHTML = conArts.map(function (a) {
+      var logs = a.console_logs || [];
+      var rows = logs.map(function (l) {
+        return '<div class="con ' + esc(l.level || 'log') + '">'
+          + '<span class="idx">#' + esc(l.i) + '</span>'
+          + '<span class="lv">' + esc(l.level || 'log') + '</span>'
+          + '<span class="tx">' + esc(l.text || '') + '</span></div>';
+      }).join('');
+      return '<div class="cmdgroup"><div class="who"><b>' + esc(a.test_id || '(unknown test)')
+        + '</b> · attempt ' + esc(a.attempt) + ' · ' + (a.total_logs || logs.length) + ' console lines</div>'
+        + rows + '</div>';
+    }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no console output captured (nothing failed, or the app logged nothing)</div>';
+
+    // terminal output (artifact:stdout), per failing spec — node/task process only
+    var outArts = st.artifacts.filter(function (a) { return a.type === 'artifact:stdout'; });
+    document.getElementById('terminal').innerHTML = outArts.map(function (a) {
+      return '<div class="cmdgroup"><div class="who"><b>' + esc(a.spec || 'spec') + '</b></div>'
+        + '<div class="term">' + esc(a.stdout || '') + '</div></div>';
+    }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no node/task terminal output for failing specs in this run</div>';
+
     document.getElementById('artifacts').innerHTML = st.artifacts.filter(function (a) {
-      return a.type !== 'artifact:commands';
+      return a.type !== 'artifact:commands' && a.type !== 'artifact:console' && a.type !== 'artifact:stdout';
     }).map(function (a) {
       var q = 'run_id=' + st.selected + '&seq=' + a.seq;
       if (a.type === 'artifact:screenshot') {

@@ -54,13 +54,15 @@ run:end                                once — totals + the bounded final flush
 | 2 | root `before()` | `spec:tests` | Browser | once per spec | `cy.task` |
 | 3 | `before:spec` | `spec:start` | Node | once per spec | direct `emit()` |
 | 4 | `beforeEach` | `test:start` | Browser | per attempt | `cy.task` (flushed now) |
-| 5 | `Cypress.on('fail')` | `artifact:commands` | Browser | per failed attempt | `cy.task` |
-| 6 | `Cypress.on('fail')` | `artifact:dom` | Browser | per failed attempt | `cy.task` |
-| 7 | `Cypress.on('fail')` | `artifact:dom-backtrack` | Browser | N per failure (if `backtrackDepth>0`) | `cy.task` |
-| 8 | `after:screenshot` | `artifact:screenshot` | Node | per screenshot | direct `emit()` |
-| 9 | `afterEach` | `test:attempt:end` | Browser | per attempt | `cy.task` |
-| 10 | `after:spec` | `spec:end` | Node | once per spec | direct `emit()` |
-| 11 | `after:run` | `run:end` | Node | once per run | direct `emit()` + **final flush** |
+| 5 | `Cypress.on('fail')` | `artifact:console` | Browser | per failed attempt | `cy.task` |
+| 6 | `Cypress.on('fail')` | `artifact:commands` | Browser | per failed attempt | `cy.task` |
+| 7 | `Cypress.on('fail')` | `artifact:dom` | Browser | per failed attempt | `cy.task` |
+| 8 | `Cypress.on('fail')` | `artifact:dom-backtrack` | Browser | N per failure (if `backtrackDepth>0`) | `cy.task` |
+| 9 | `after:screenshot` | `artifact:screenshot` | Node | per screenshot | direct `emit()` |
+| 10 | `afterEach` | `test:attempt:end` | Browser | per attempt | `cy.task` |
+| 11 | `after:spec` | `spec:end` | Node | once per spec | direct `emit()` |
+| 12 | `after:spec` | `artifact:stdout` | Node | once per **failing** spec | direct `emit()` |
+| 13 | `after:run` | `run:end` | Node | once per run | direct `emit()` + **final flush** |
 
 ## Payloads
 
@@ -156,6 +158,30 @@ DOM backtrack. The in-flight command at failure is the last entry,
   ] }
 ```
 
+### `artifact:console`
+The browser console lines the app logged before failing (last `console.depth`),
+each with its true ordinal `i`.
+```jsonc
+{ "testId": "…", "attempt": 1, "error": "…",
+  "totalLogs": 3,
+  "logs": [
+    { "i": 1, "level": "log",   "text": "[TaskBoard] app loaded" },
+    { "i": 3, "level": "error", "text": "[TaskBoard] authentication failed for demo@example.com" }
+  ] }
+```
+
+### `artifact:stdout`
+Node-side terminal output for a **failing spec only** — whatever the Cypress
+**plugin process** printed during the spec (your `cy.task` logs, plugin logs,
+a server running in that process). **Not** the Cypress reporter block (test
+tree + error stack): that runs in a separate process and is unreachable from
+`setupNodeEvents` — but it's already captured structurally in `spec:end` and
+the per-test `error` fields.
+```jsonc
+{ "spec": "cypress/e2e/login.cy.js", "failures": 1, "bytes": 141,
+  "stdout": "[server] processing login for demo@example.com\n…" }
+```
+
 ### `spec:end`
 ```jsonc
 { "spec": "cypress/e2e/login.cy.js",
@@ -191,7 +217,8 @@ skipped, video, updated_at, planned_tests, planned_test_ids`
 
 **`clr_artifacts`** — `run_id, seq, type, ts, test_id, attempt, name,
 screenshot_base64, dom_gzip_base64, artifact_url, page_url, steps_before_failure,
-command, width, height, commands, total_commands, error`
+command, width, height, commands, total_commands, console_logs, total_logs,
+stdout, error, spec`
 
 ## Honest limitations
 

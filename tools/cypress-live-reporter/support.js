@@ -26,6 +26,9 @@
   // command-log capture is cheap (no DOM) so it defaults ON
   var commandsEnabled = !cfg.commands || cfg.commands.enabled !== false;
   var commandsDepth = Math.min(Math.max(1, (cfg.commands && cfg.commands.depth) || 20), 50);
+  // browser console capture (console.log/info/warn/error from the app)
+  var consoleEnabled = !cfg.console || cfg.console.enabled !== false;
+  var consoleDepth = Math.min(Math.max(1, (cfg.console && cfg.console.depth) || 50), 200);
   // commands that never change the AUT — not worth a DOM snapshot
   var BACKTRACK_SKIP = { task: 1, log: 1, wrap: 1, then: 1, wait: 1 };
 
@@ -34,6 +37,8 @@
   var cmdRing = []; // command log (only the last `commandsDepth` are kept)
   var cmdCount = 0; // TOTAL commands this attempt — gives each its true ordinal
   var currentCmd = null; // command in flight (the one that fails)
+  var conRing = []; // browser console lines (last `consoleDepth`)
+  var conCount = 0; // TOTAL console lines this attempt
 
   function push(type, payload) {
     try {
@@ -157,6 +162,29 @@
     return name === 'task' && args && args[0] === 'clr:events';
   }
 
+  // Stringify console.* arguments to a single line. Never throws.
+  function consoleText(args) {
+    try {
+      return Array.prototype.slice
+        .call(args)
+        .map(function (a) {
+          if (a == null) return String(a);
+          var t = typeof a;
+          if (t === 'string') return a;
+          if (t === 'number' || t === 'boolean') return String(a);
+          if (a instanceof Error) return a.message || String(a);
+          try {
+            return JSON.stringify(a);
+          } catch (e) {
+            return String(a);
+          }
+        })
+        .join(' ');
+    } catch (e) {
+      return '';
+    }
+  }
+
   /**
    * Snapshot of the AUT document. Clones documentElement (never mutates the
    * AUT) and copies live form state onto the clone so the saved HTML shows
@@ -231,6 +259,8 @@
       cmdRing = [];
       cmdCount = 0;
       currentCmd = null;
+      conRing = [];
+      conCount = 0;
       if (!liveTests) return;
       var t = this.currentTest;
       if (!t) return;
@@ -270,6 +300,34 @@
       /* never fail the test */
     }
   });
+
+  /* ---- browser console capture ---------------------------------------- */
+
+  if (consoleEnabled) {
+    // wrap the app's console on each new window so we mirror its output into a
+    // ring; the original console is always called, so devtools is unaffected
+    Cypress.on('window:before:load', function (win) {
+      try {
+        ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+          var orig = win.console && win.console[level];
+          if (typeof orig !== 'function') return;
+          win.console[level] = function () {
+            try {
+              conCount++;
+              var text = consoleText(arguments);
+              conRing.push({ i: conCount, level: level, text: text.length > 500 ? text.slice(0, 500) + '…' : text });
+              if (conRing.length > consoleDepth) conRing.shift();
+            } catch (e) {
+              /* skip this line */
+            }
+            return orig.apply(this, arguments);
+          };
+        });
+      } catch (e) {
+        /* leave the console alone */
+      }
+    });
+  }
 
   /* ---- command log (cheap, no DOM) ------------------------------------ */
 
@@ -312,11 +370,23 @@
 
   /* ---- failure evidence: command log + DOM snapshot (+ backtrack) ----- */
 
-  if (domEnabled || commandsEnabled) {
+  if (domEnabled || commandsEnabled || consoleEnabled) {
     Cypress.on('fail', function (err, runnable) {
       try {
         var testId = testIdFor(runnable);
         var attempt = attemptOf(runnable);
+
+        // browser console — the last N lines the app logged before failing
+        if (consoleEnabled && conRing.length) {
+          push('artifact:console', {
+            testId: testId,
+            attempt: attempt,
+            spec: specRelative(),
+            error: (err && err.message) || null,
+            totalLogs: conCount, // full count; `logs` holds only the last N
+            logs: conRing.slice(),
+          });
+        }
 
         // command log — the last N commands, plus the one that was in flight
         // when the failure happened (command:end never fired for it)
@@ -384,6 +454,7 @@
         ring = [];
         cmdRing = [];
         currentCmd = null;
+        conRing = [];
       } catch (e) {
         /* evidence collection must never mask the real failure */
       }

@@ -52,17 +52,22 @@
 <script>
   var DEMO_USER = { email: 'demo@example.com', password: 'secret123' };
 
+  console.log('[TaskBoard] app loaded, awaiting sign-in');
+
   document.getElementById('login-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var email = document.getElementById('email').value;
     var password = document.getElementById('password').value;
     var error = document.getElementById('login-error');
+    console.log('[TaskBoard] login attempt for', email);
     if (email === DEMO_USER.email && password === DEMO_USER.password) {
       error.classList.remove('visible');
       document.getElementById('login-card').style.display = 'none';
       document.getElementById('todo-app').classList.add('visible');
+      console.info('[TaskBoard] signed in');
     } else {
       error.classList.add('visible');
+      console.error('[TaskBoard] authentication failed for', email);
     }
   });
 

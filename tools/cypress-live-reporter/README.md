@@ -62,6 +62,10 @@ Everything is **ON by default**. Create `clr.config.json` in your project root o
 | `screenshots.storage` | `"db"` | `"db"` = base64 in payload · `"s3"` = upload, payload carries `url`. |
 | `commands.enabled` | `true` | On failure, ship the last N commands (name + args + state + ms) — a command log like Cypress Cloud. Cheap (no DOM). |
 | `commands.depth` | `20` | How many commands to keep before failure (1–50). |
+| `console.enabled` | `true` | On failure, ship the last N browser console lines (the app's `console.*`) as `artifact:console`. |
+| `console.depth` | `50` | How many console lines to keep before failure (1–200). |
+| `stdout.enabled` | `true` | For failing specs, ship node/task terminal output (plugin-process stdout) as `artifact:stdout`. Not the Cypress reporter block (separate process). |
+| `stdout.maxBytes` | `65536` | Cap on captured stdout per spec (keeps the tail). |
 | `dom.enabled` | `true` | Serialize the DOM at the moment of failure. |
 | `dom.storage` | `"db"` | Independent of `screenshots.storage`. |
 | `dom.backtrackDepth` | `0` | 1–5: also keep DOM snapshots of the last N commands before failure. **Keep 0 in CI gates** (see Performance). |
@@ -125,7 +129,9 @@ Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on t
 | `artifact:screenshot` | Node | `after:screenshot` | `testId` (from the running test — reliable even when Cypress sends empty titles), `name`, `attempt`, `width`, `height`, `takenAt`, `base64` **or** `url` |
 | `artifact:dom` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, `pageUrl`, `viewportWidth/Height`, `htmlGzipBase64` **or** `url`. The failure is always rethrown — never swallowed. |
 | `artifact:dom-backtrack` | browser | on fail, if `backtrackDepth > 0` | One event per ring snapshot: `command`, `stepsBeforeFailure` (1 = last command before failure), plus the DOM fields above |
-| `artifact:commands` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, and `commands[]` — the last N commands, each `{ name, args, state, ms }`. The in-flight command at failure is the final entry with `state: "failed"`. |
+| `artifact:commands` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `error`, `totalCommands`, and `commands[]` — the last N commands, each `{ i, name, args, state, ms, stepsBeforeFailure }`. The in-flight command at failure is the final entry with `state: "failed"`. |
+| `artifact:console` | browser | `Cypress.on('fail')` | `testId`, `attempt`, `totalLogs`, and `logs[]` — the last N browser console lines, each `{ i, level, text }`. |
+| `artifact:stdout` | Node | `after:spec` (failing specs) | `spec`, `failures`, `bytes`, `stdout` — node/plugin-process terminal output during the spec. |
 
 CI metadata is read from GitHub Actions (`GITHUB_REF_NAME`, `GITHUB_SHA`, `GITHUB_ACTOR`, PR number from `GITHUB_REF` = `refs/pull/<n>/merge`, run URL) and GitLab CI (`CI_COMMIT_REF_NAME`, `CI_COMMIT_SHA`, `GITLAB_USER_LOGIN`, `CI_MERGE_REQUEST_IID`, `CI_JOB_URL`) env vars, plus the machine hostname. Surfaced on `clr_runs` as `pr` / `triggered_by`.
 

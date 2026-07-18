@@ -26,6 +26,8 @@ describe('login', () => {
   });
 
   it('INTENTIONAL FAILURE: error banner names the field (demo of failure evidence)', () => {
+    // a node-side task log — captured as artifact:stdout because this spec fails
+    cy.task('serverLog', 'processing login for demo@example.com');
     cy.get('[data-cy=login-email]').type('demo@example.com');
     cy.get('[data-cy=login-password]').type('wrong-password');
     cy.get('[data-cy=login-submit]').click();
