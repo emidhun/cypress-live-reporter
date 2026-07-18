@@ -153,6 +153,7 @@ SELECT
   (payload->>'width')::int                 AS width,
   (payload->>'height')::int                AS height,
   payload->'commands'                      AS commands,   -- jsonb array (artifact:commands)
+  (payload->>'totalCommands')::int         AS total_commands,
   payload->>'error'                        AS error
 FROM clr_events
 WHERE type LIKE 'artifact:%';

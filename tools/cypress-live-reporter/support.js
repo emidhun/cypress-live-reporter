@@ -31,7 +31,8 @@
 
   var buffer = [];
   var ring = []; // DOM snapshots (backtrack)
-  var cmdRing = []; // command log
+  var cmdRing = []; // command log (only the last `commandsDepth` are kept)
+  var cmdCount = 0; // TOTAL commands this attempt — gives each its true ordinal
   var currentCmd = null; // command in flight (the one that fails)
 
   function push(type, payload) {
@@ -228,6 +229,7 @@
     try {
       ring = [];
       cmdRing = [];
+      cmdCount = 0;
       currentCmd = null;
       if (!liveTests) return;
       var t = this.currentTest;
@@ -288,7 +290,9 @@
         var name = cmdGet(command, 'name');
         var args = cmdGet(command, 'args') || [];
         if (!name || isOwnTask(name, args)) return;
+        cmdCount++; // count EVERY command, so `i` is the true position
         var entry = {
+          i: cmdCount,
           name: name,
           args: argStr(args),
           state: cmdGet(command, 'state') || 'passed',
@@ -297,6 +301,7 @@
           entry.ms = new Date().getTime() - currentCmd.startedAt;
         }
         currentCmd = null;
+        // ring keeps only the last N, but each entry carries its absolute `i`
         cmdRing.push(entry);
         if (cmdRing.length > commandsDepth) cmdRing.shift();
       } catch (e) {
@@ -318,18 +323,28 @@
         if (commandsEnabled) {
           var cmds = cmdRing.slice();
           if (currentCmd) {
+            // the failing command started but never got command:end, so it's
+            // the next ordinal after everything counted so far
+            cmdCount++;
             cmds.push({
+              i: cmdCount,
               name: currentCmd.name,
               args: currentCmd.args,
               state: 'failed',
               ms: new Date().getTime() - currentCmd.startedAt,
             });
           }
+          // stepsBeforeFailure lets each command line up with the DOM backtrack
+          // (0 = the command that failed) — derived from its true ordinal
+          for (var ci = 0; ci < cmds.length; ci++) {
+            cmds[ci].stepsBeforeFailure = cmdCount - cmds[ci].i;
+          }
           push('artifact:commands', {
             testId: testId,
             attempt: attempt,
             spec: specRelative(),
             error: (err && err.message) || null,
+            totalCommands: cmdCount, // full count; `commands` holds only the last N
             commands: cmds,
           });
         }

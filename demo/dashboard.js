@@ -46,7 +46,7 @@ async function stateFor(runId) {
     pool.query('SELECT * FROM clr_specs WHERE run_id = $1 ORDER BY spec', [selected]),
     pool.query(
       `SELECT seq, type, attempt, test_id, name, command, steps_before_failure, page_url,
-              artifact_url, commands, error,
+              artifact_url, commands, total_commands, error,
               (screenshot_base64 IS NOT NULL) AS has_screenshot,
               (dom_gzip_base64 IS NOT NULL)   AS has_dom
        FROM clr_artifacts WHERE run_id = $1 ORDER BY seq`,
@@ -253,16 +253,19 @@ const PAGE = `<!DOCTYPE html>
     var cmdArts = st.artifacts.filter(function (a) { return a.type === 'artifact:commands'; });
     document.getElementById('commands').innerHTML = cmdArts.map(function (a) {
       var cmds = a.commands || [];
-      var rows = cmds.map(function (c, i) {
+      var total = a.total_commands || (cmds.length ? cmds[cmds.length - 1].i : 0);
+      var rows = cmds.map(function (c) {
         var state = c.state || 'passed';
         return '<div class="cmd ' + esc(state) + '"><span class="dot"></span>'
-          + '<span class="idx">' + (i + 1) + '</span>'
+          + '<span class="idx">#' + esc(c.i) + '</span>'
           + '<span class="nm">' + esc(c.name) + '</span>'
           + '<span class="ar">' + esc(c.args || '') + '</span>'
           + '<span class="dur">' + (c.ms == null ? '' : c.ms + 'ms') + '</span></div>';
       }).join('');
+      var truncated = total > cmds.length ? ' · showing last ' + cmds.length + ' of ' + total : '';
       return '<div class="cmdgroup"><div class="who"><b>' + esc(a.test_id || '(unknown test)')
-        + '</b> · attempt ' + esc(a.attempt) + (a.error ? ' · <span style="color:var(--red)">' + esc(a.error.slice(0, 90)) + '</span>' : '')
+        + '</b> · attempt ' + esc(a.attempt) + ' · ' + total + ' commands' + truncated
+        + (a.error ? ' · <span style="color:var(--red)">' + esc(a.error.slice(0, 90)) + '</span>' : '')
         + '</div>' + rows + '</div>';
     }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no command logs — nothing has failed in this run</div>';
 

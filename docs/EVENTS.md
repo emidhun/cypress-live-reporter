@@ -139,14 +139,20 @@ One event per ring snapshot (only when `dom.backtrackDepth > 0`).
 ```
 
 ### `artifact:commands`
-The command log — a Cypress Cloud-style timeline. The in-flight command at
-failure is the last entry, `state: "failed"`.
+The command log — a Cypress Cloud-style timeline. Only the last `commands.depth`
+commands are shipped, but `totalCommands` is the true count and each entry
+carries its real ordinal `i` (so command #245 reads as #245, not #20).
+`stepsBeforeFailure` (0 = the command that failed) lets each line up with the
+DOM backtrack. The in-flight command at failure is the last entry,
+`state: "failed"`.
 ```jsonc
 { "testId": "…", "attempt": 1, "error": "…",
-  "commands": [
-    { "name": "visit", "args": "/", "state": "passed", "ms": 16 },
-    { "name": "get", "args": "[data-cy=login-error], {\"timeout\":1500}",
-      "state": "failed", "ms": 1498 }
+  "totalCommands": 42,                 // full count for the attempt
+  "commands": [                        // only the last N (commands.depth)
+    { "i": 41, "name": "get", "args": "[data-cy=login-card]",
+      "state": "passed", "ms": 1, "stepsBeforeFailure": 1 },
+    { "i": 42, "name": "get", "args": "[data-cy=does-not-exist], {\"timeout\":500}",
+      "state": "failed", "ms": 498, "stepsBeforeFailure": 0 }
   ] }
 ```
 
@@ -185,7 +191,7 @@ skipped, video, updated_at, planned_tests, planned_test_ids`
 
 **`clr_artifacts`** — `run_id, seq, type, ts, test_id, attempt, name,
 screenshot_base64, dom_gzip_base64, artifact_url, page_url, steps_before_failure,
-command, width, height, commands, error`
+command, width, height, commands, total_commands, error`
 
 ## Honest limitations
 
