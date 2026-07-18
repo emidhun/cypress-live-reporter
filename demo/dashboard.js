@@ -46,7 +46,7 @@ async function stateFor(runId) {
     pool.query('SELECT * FROM clr_specs WHERE run_id = $1 ORDER BY spec', [selected]),
     pool.query(
       `SELECT seq, type, attempt, test_id, name, command, steps_before_failure, page_url,
-              artifact_url,
+              artifact_url, commands, error,
               (screenshot_base64 IS NOT NULL) AS has_screenshot,
               (dom_gzip_base64 IS NOT NULL)   AS has_dom
        FROM clr_artifacts WHERE run_id = $1 ORDER BY seq`,
@@ -159,6 +159,21 @@ const PAGE = `<!DOCTYPE html>
   .mid { display: flex; flex-direction: column; gap: 14px; }
   .totals { font-family: var(--mono); font-size: 12px; color: var(--dim); }
   .totals b.g { color: var(--green); } .totals b.r { color: var(--red); }
+  .cmdgroup { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .cmdgroup:last-child { border-bottom: 0; }
+  .cmdgroup .who { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+  .cmdgroup .who b { color: var(--text); }
+  .cmd { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); font-size: 12px; padding: 2px 0; }
+  .cmd .idx { color: var(--dim); width: 20px; text-align: right; flex: none; }
+  .cmd .nm { color: var(--blue); min-width: 58px; flex: none; }
+  .cmd.failed .nm { color: var(--red); }
+  .cmd.pending .nm, .cmd.queued .nm { color: var(--amber); }
+  .cmd .ar { color: var(--text); word-break: break-all; flex: 1; }
+  .cmd .dur { color: var(--dim); flex: none; }
+  .cmd.failed { background: rgba(244,99,110,.08); border-radius: 4px; padding: 2px 4px; margin: 0 -4px; }
+  .cmd .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); align-self: center; }
+  .cmd.failed .dot { background: var(--red); }
+  .cmd.pending .dot, .cmd.queued .dot { background: var(--amber); }
 </style>
 </head>
 <body>
@@ -172,6 +187,7 @@ const PAGE = `<!DOCTYPE html>
   <div class="mid">
     <div class="panel"><h2>Tests (live)</h2><div class="body"><table id="tests"></table></div></div>
     <div class="panel"><h2>Specs</h2><div class="body"><table id="specs"></table></div></div>
+    <div class="panel"><h2>Command log (last commands before each failure)</h2><div id="commands"></div></div>
     <div class="panel"><h2>Failure evidence</h2><div class="shots" id="artifacts"></div></div>
   </div>
   <div class="panel"><h2>Event stream</h2><div class="log" id="log"></div></div>
@@ -213,7 +229,25 @@ const PAGE = `<!DOCTYPE html>
           + '</td><td>' + ms(s.duration_ms) + '</td></tr>';
       }).join('');
 
-    document.getElementById('artifacts').innerHTML = st.artifacts.map(function (a) {
+    var cmdArts = st.artifacts.filter(function (a) { return a.type === 'artifact:commands'; });
+    document.getElementById('commands').innerHTML = cmdArts.map(function (a) {
+      var cmds = a.commands || [];
+      var rows = cmds.map(function (c, i) {
+        var state = c.state || 'passed';
+        return '<div class="cmd ' + esc(state) + '"><span class="dot"></span>'
+          + '<span class="idx">' + (i + 1) + '</span>'
+          + '<span class="nm">' + esc(c.name) + '</span>'
+          + '<span class="ar">' + esc(c.args || '') + '</span>'
+          + '<span class="dur">' + (c.ms == null ? '' : c.ms + 'ms') + '</span></div>';
+      }).join('');
+      return '<div class="cmdgroup"><div class="who"><b>' + esc(a.test_id || '(unknown test)')
+        + '</b> · attempt ' + esc(a.attempt) + (a.error ? ' · <span style="color:var(--red)">' + esc(a.error.slice(0, 90)) + '</span>' : '')
+        + '</div>' + rows + '</div>';
+    }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no command logs — nothing has failed in this run</div>';
+
+    document.getElementById('artifacts').innerHTML = st.artifacts.filter(function (a) {
+      return a.type !== 'artifact:commands';
+    }).map(function (a) {
       var q = 'run_id=' + st.selected + '&seq=' + a.seq;
       if (a.type === 'artifact:screenshot') {
         var src = a.artifact_url || ('/api/screenshot?' + q);
