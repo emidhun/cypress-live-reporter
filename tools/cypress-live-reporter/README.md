@@ -46,6 +46,30 @@ CLR_WEBHOOK_TOKEN=optional-bearer-token
 
 If **neither** env var is set, the plugin prints one warning and self-disables — it never throws and never breaks the run.
 
+**4. Postgres only — create the schema (required).** The plugin does not create tables. Sink errors are swallowed, so a missing table means every insert is silently dropped (empty dashboard, no error). Run this once before your first run:
+
+```bash
+psql "$CLR_PG_URL" -f tools/cypress-live-reporter/schema.sql
+```
+
+It creates the append-only `clr_events` table + indexes and the four dashboard views. The core table, if you prefer to run the DDL by hand:
+
+```sql
+CREATE TABLE IF NOT EXISTS clr_events (
+  id      bigserial   PRIMARY KEY,
+  run_id  uuid        NOT NULL,
+  seq     int         NOT NULL,
+  type    text        NOT NULL,
+  ts      timestamptz NOT NULL DEFAULT now(),
+  payload jsonb       NOT NULL,
+  UNIQUE (run_id, seq)
+);
+CREATE INDEX IF NOT EXISTS clr_events_run_type_idx ON clr_events (run_id, type);
+CREATE INDEX IF NOT EXISTS clr_events_ts_idx       ON clr_events (ts DESC);
+```
+
+The dashboard views live in [`schema.sql`](./schema.sql) — running that file is the simplest path. (Webhook mode needs no schema.)
+
 ---
 
 ## Configuration (`clr.config.json`, optional)

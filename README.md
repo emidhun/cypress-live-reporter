@@ -42,11 +42,29 @@ CLR_PG_URL=postgres://user:pass@host:5432/db      # postgres mode  (npm i -D pg)
 CLR_WEBHOOK_URL=https://your-endpoint/hook        # webhook mode
 ```
 
-For Postgres, apply the schema once:
+**Postgres mode — create the schema first (required).** The plugin does **not** create tables; because all sink errors are swallowed, if the table is missing every insert is silently dropped and your dashboard stays empty. Apply the schema once before your first run:
 
 ```bash
 psql "$CLR_PG_URL" -f tools/cypress-live-reporter/schema.sql
 ```
+
+That file creates the append-only table (below) plus the four dashboard views. If you'd rather run the DDL by hand, this is the required table:
+
+```sql
+CREATE TABLE IF NOT EXISTS clr_events (
+  id      bigserial   PRIMARY KEY,
+  run_id  uuid        NOT NULL,
+  seq     int         NOT NULL,
+  type    text        NOT NULL,
+  ts      timestamptz NOT NULL DEFAULT now(),
+  payload jsonb       NOT NULL,
+  UNIQUE (run_id, seq)                       -- idempotent inserts
+);
+CREATE INDEX IF NOT EXISTS clr_events_run_type_idx ON clr_events (run_id, type);
+CREATE INDEX IF NOT EXISTS clr_events_ts_idx       ON clr_events (ts DESC);
+```
+
+The **views** (`clr_runs`, `clr_tests_live`, `clr_specs`, `clr_artifacts`) are what the dashboard reads — they're in [`schema.sql`](./tools/cypress-live-reporter/schema.sql), so running that file is the simplest path. (Webhook mode needs no schema — you own the receiver.)
 
 Run your suite as normal (`npx cypress run`). If neither env var is set, the plugin prints **one** warning and self-disables — it never throws.
 
