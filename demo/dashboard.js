@@ -195,6 +195,7 @@ const PAGE = `<!DOCTYPE html>
   <div class="mid">
     <div class="panel"><h2>Tests (live)</h2><div class="body"><table id="tests"></table></div></div>
     <div class="panel"><h2>Specs</h2><div class="body"><table id="specs"></table></div></div>
+    <div class="panel"><h2>Terminal log (failure — commands + console interleaved)</h2><div id="terminallog"></div></div>
     <div class="panel"><h2>Command log (last commands before each failure)</h2><div id="commands"></div></div>
     <div class="panel"><h2>Browser console (app logs before each failure)</h2><div id="console"></div></div>
     <div class="panel"><h2>Terminal output (node/task stdout · failing specs)</h2><div id="terminal"></div></div>
@@ -259,6 +260,43 @@ const PAGE = `<!DOCTYPE html>
           + (s.passes == null ? '' : s.passes) + '</td><td>' + (s.failures == null ? '' : s.failures)
           + '</td><td>' + ms(s.duration_ms) + '</td></tr>';
       }).join('');
+
+    // terminal log — merge each failure's commands + console chronologically
+    // (by their captured timestamp) into a terminal-style block, then the error
+    var termByKey = {};
+    function keyOf(a) { return (a.test_id || '') + '#' + (a.attempt || 1); }
+    st.artifacts.forEach(function (a) {
+      if (a.type !== 'artifact:commands' && a.type !== 'artifact:console') return;
+      var k = keyOf(a);
+      termByKey[k] = termByKey[k] || { test_id: a.test_id, attempt: a.attempt, lines: [], error: null };
+      if (a.type === 'artifact:commands') {
+        (a.commands || []).forEach(function (c) {
+          termByKey[k].lines.push({ t: c.t || 0, kind: 'cmd', v: c });
+        });
+        termByKey[k].error = termByKey[k].error || a.error;
+      } else {
+        (a.console_logs || []).forEach(function (l) {
+          termByKey[k].lines.push({ t: l.t || 0, kind: 'con', v: l });
+        });
+        termByKey[k].error = termByKey[k].error || a.error;
+      }
+    });
+    function padEnd(s, n) { s = String(s); return s.length >= n ? s : s + ' '.repeat(n - s.length); }
+    document.getElementById('terminallog').innerHTML = Object.keys(termByKey).map(function (k) {
+      var g = termByKey[k];
+      g.lines.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
+      var body = g.lines.map(function (x) {
+        if (x.kind === 'cmd') {
+          var mark = x.v.state === 'failed' ? '✖' : (x.v.state === 'passed' ? '✔' : '•');
+          return '  ' + mark + ' cy:' + padEnd(x.v.name, 10) + ' ' + (x.v.args || '')
+            + (x.v.ms != null ? '  (' + x.v.ms + 'ms)' : '');
+        }
+        return '    console.' + padEnd((x.v.level || 'log') + ':', 7) + ' ' + (x.v.text || '');
+      }).join('\n');
+      if (g.error) body += '\n\n  ✖ ' + g.error;
+      return '<div class="cmdgroup"><div class="who"><b>' + esc(g.test_id || '(unknown test)')
+        + '</b> · attempt ' + esc(g.attempt) + '</div><div class="term">' + esc(body) + '</div></div>';
+    }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no terminal log — nothing has failed in this run</div>';
 
     var cmdArts = st.artifacts.filter(function (a) { return a.type === 'artifact:commands'; });
     document.getElementById('commands').innerHTML = cmdArts.map(function (a) {

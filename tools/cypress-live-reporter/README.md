@@ -87,7 +87,7 @@ Everything is **ON by default**. Create `clr.config.json` in your project root o
 | `commands.enabled` | `true` | On failure, ship the last N commands (name + args + state + ms) — a command log like Cypress Cloud. Cheap (no DOM). |
 | `commands.depth` | `20` | How many commands to keep before failure (1–50). |
 | `console.enabled` | `true` | On failure, ship the last N browser console lines (the app's `console.*`) as `artifact:console`. |
-| `console.depth` | `50` | How many console lines to keep before failure (1–200). |
+| `console.depth` | `8` | How many console lines to keep before failure (1–200). Default 8 = the sweet spot. |
 | `stdout.enabled` | `true` | For failing specs, ship node/task terminal output (plugin-process stdout) as `artifact:stdout`. Not the Cypress reporter block (separate process). |
 | `stdout.maxBytes` | `65536` | Cap on captured stdout per spec (keeps the tail). |
 | `dom.enabled` | `true` | Serialize the DOM at the moment of failure. |

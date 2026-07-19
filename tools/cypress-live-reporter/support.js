@@ -315,7 +315,12 @@
             try {
               conCount++;
               var text = consoleText(arguments);
-              conRing.push({ i: conCount, level: level, text: text.length > 500 ? text.slice(0, 500) + '…' : text });
+              conRing.push({
+                i: conCount,
+                t: new Date().getTime(), // for chronological interleaving with commands
+                level: level,
+                text: text.length > 500 ? text.slice(0, 500) + '…' : text,
+              });
               if (conRing.length > consoleDepth) conRing.shift();
             } catch (e) {
               /* skip this line */
@@ -351,6 +356,7 @@
         cmdCount++; // count EVERY command, so `i` is the true position
         var entry = {
           i: cmdCount,
+          t: new Date().getTime(), // for chronological interleaving with console
           name: name,
           args: argStr(args),
           state: cmdGet(command, 'state') || 'passed',
@@ -398,6 +404,7 @@
             cmdCount++;
             cmds.push({
               i: cmdCount,
+              t: new Date().getTime(),
               name: currentCmd.name,
               args: currentCmd.args,
               state: 'failed',

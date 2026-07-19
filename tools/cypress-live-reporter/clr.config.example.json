@@ -30,9 +30,9 @@
 
   "console": {
     "enabled": true,
-    "_enabled_doc": "On failure, ship the last N browser console lines (console.log/info/warn/error from the app) as an artifact:console event.",
-    "depth": 50,
-    "_depth_doc": "How many console lines to keep before failure (1–200)."
+    "_enabled_doc": "On failure, ship the last N browser console lines (console.log/info/warn/error from the app) as an artifact:console event. Also feeds the reconstructed terminal log.",
+    "depth": 8,
+    "_depth_doc": "How many console lines to keep before failure (1–200). Default 8 — the sweet spot: enough pre-failure context without noise."
   },
 
   "stdout": {

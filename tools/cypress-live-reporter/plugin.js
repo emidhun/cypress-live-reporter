@@ -36,7 +36,7 @@ const DEFAULTS = {
   events: { runLifecycle: true, liveTests: true },
   screenshots: { enabled: true, storage: 'db' },
   commands: { enabled: true, depth: 20 },
-  console: { enabled: true, depth: 50 },
+  console: { enabled: true, depth: 8 },
   stdout: { enabled: true, maxBytes: 65536 },
   dom: { enabled: true, storage: 'db', backtrackDepth: 0 },
   s3: { bucket: null, region: 'ap-south-1', prefix: 'clr/', endpoint: null, publicBaseUrl: null },
@@ -403,7 +403,7 @@ function setup(on, config, opts) {
     },
     console: {
       enabled: cfg.console.enabled !== false,
-      depth: Math.min(Math.max(1, Math.floor(cfg.console.depth || 50)), 200),
+      depth: Math.min(Math.max(1, Math.floor(cfg.console.depth || 8)), 200),
     },
     dom: {
       enabled: cfg.dom.enabled !== false,
