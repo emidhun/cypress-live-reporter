@@ -154,6 +154,7 @@ SELECT
   (payload->>'height')::int                AS height,
   payload->'commands'                      AS commands,   -- jsonb array (artifact:commands)
   (payload->>'totalCommands')::int         AS total_commands,
+  payload->'asserts'                       AS asserts,     -- jsonb array of assertions
   payload->'logs'                          AS console_logs, -- jsonb array (artifact:console)
   (payload->>'totalLogs')::int             AS total_logs,
   payload->>'stdout'                       AS stdout,      -- text (artifact:stdout, failing specs)

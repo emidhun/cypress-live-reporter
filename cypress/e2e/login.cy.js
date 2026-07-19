@@ -31,6 +31,9 @@ describe('login', () => {
     cy.get('[data-cy=login-email]').type('demo@example.com');
     cy.get('[data-cy=login-password]').type('wrong-password');
     cy.get('[data-cy=login-submit]').click();
+    // a PASSING assertion first (the banner really is visible) — proves
+    // assertions are captured into the terminal log
+    cy.get('[data-cy=login-error]').should('be.visible');
     // the real banner says "Invalid email or password." — this assertion is
     // wrong on purpose, fails both attempts, and produces the artifacts
     cy.get('[data-cy=login-error]', { timeout: 1500 }).should('contain', 'password must be 12 characters');

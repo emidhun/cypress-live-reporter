@@ -151,12 +151,18 @@ DOM backtrack. The in-flight command at failure is the last entry,
 { "testId": "…", "attempt": 1, "error": "…",
   "totalCommands": 42,                 // full count for the attempt
   "commands": [                        // only the last N (commands.depth)
-    { "i": 41, "name": "get", "args": "[data-cy=login-card]",
+    { "i": 41, "t": 1784, "name": "get", "args": "[data-cy=login-card]",
       "state": "passed", "ms": 1, "stepsBeforeFailure": 1 },
-    { "i": 42, "name": "get", "args": "[data-cy=does-not-exist], {\"timeout\":500}",
+    { "i": 42, "t": 1785, "name": "get", "args": "[data-cy=does-not-exist], {\"timeout\":500}",
       "state": "failed", "ms": 498, "stepsBeforeFailure": 0 }
+  ],
+  "asserts": [                         // assertions (.should/expect) — logs, not commands
+    { "t": 1784, "name": "assert", "state": "passed",
+      "args": "expected <div#login-error> to be visible" }
   ] }
 ```
+Each command and assert carries a `t` timestamp so a dashboard can interleave
+them (and the browser console) chronologically into a terminal-style log.
 
 ### `artifact:console`
 The browser console lines the app logged before failing (last `console.depth`),

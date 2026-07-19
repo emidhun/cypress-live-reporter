@@ -46,7 +46,7 @@ async function stateFor(runId) {
     pool.query('SELECT * FROM clr_specs WHERE run_id = $1 ORDER BY spec', [selected]),
     pool.query(
       `SELECT seq, type, attempt, test_id, name, command, steps_before_failure, page_url,
-              artifact_url, commands, total_commands, console_logs, total_logs, stdout, error, spec,
+              artifact_url, commands, total_commands, asserts, console_logs, total_logs, stdout, error, spec,
               (screenshot_base64 IS NOT NULL) AS has_screenshot,
               (dom_gzip_base64 IS NOT NULL)   AS has_dom
        FROM clr_artifacts WHERE run_id = $1 ORDER BY seq`,
@@ -275,6 +275,9 @@ const PAGE = `<!DOCTYPE html>
         (a.commands || []).forEach(function (c) {
           termByKey[k].lines.push({ t: c.t || 0, kind: 'cmd', v: c });
         });
+        (a.asserts || []).forEach(function (as) {
+          termByKey[k].lines.push({ t: as.t || 0, kind: 'assert', v: as });
+        });
         termByKey[k].error = termByKey[k].error || a.error;
       } else {
         (a.console_logs || []).forEach(function (l) {
@@ -293,9 +296,13 @@ const PAGE = `<!DOCTYPE html>
           return '  ' + mark + ' cy:' + padEnd(x.v.name, 10) + ' ' + (x.v.args || '')
             + (x.v.ms != null ? '  (' + x.v.ms + 'ms)' : '');
         }
+        if (x.kind === 'assert') {
+          var am = x.v.state === 'failed' ? '✖' : '✔';
+          return '  ' + am + ' assert     ' + (x.v.args || '');
+        }
         return '    console.' + padEnd((x.v.level || 'log') + ':', 7) + ' ' + (x.v.text || '');
-      }).join('\n');
-      if (g.error) body += '\n\n  ✖ ' + g.error;
+      }).join('\\n');
+      if (g.error) body += '\\n\\n  ✖ ' + g.error;
       return '<div class="cmdgroup"><div class="who"><b>' + esc(g.test_id || '(unknown test)')
         + '</b> · attempt ' + esc(g.attempt) + '</div><div class="term">' + esc(body) + '</div></div>';
     }).join('') || '<div class="cmdgroup" style="color:var(--dim)">no terminal log — nothing has failed in this run</div>';

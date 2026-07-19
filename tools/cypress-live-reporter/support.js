@@ -39,6 +39,8 @@
   var currentCmd = null; // command in flight (the one that fails)
   var conRing = []; // browser console lines (last `consoleDepth`)
   var conCount = 0; // TOTAL console lines this attempt
+  var assertRing = []; // assertions (.should/expect) — logs, not commands
+  var seenAsserts = {}; // log ids already recorded (log:changed fires repeatedly)
 
   function push(type, payload) {
     try {
@@ -261,6 +263,8 @@
       currentCmd = null;
       conRing = [];
       conCount = 0;
+      assertRing = [];
+      seenAsserts = {};
       if (!liveTests) return;
       var t = this.currentTest;
       if (!t) return;
@@ -372,6 +376,36 @@
         /* skipped command */
       }
     });
+
+    // assertions (.should / .and / expect) are Cypress LOGS, not commands, so
+    // command:end never sees them. Capture them from the log stream once they
+    // settle, to weave into the terminal log.
+    Cypress.on('log:changed', function (log) {
+      try {
+        // log:changed passes the log's attributes as a plain object (not a
+        // Cypress.Log instance), so read fields directly, with a .get() fallback
+        var get = function (k) {
+          if (!log) return undefined;
+          if (typeof log.get === 'function') return log.get(k);
+          return log[k];
+        };
+        if (get('name') !== 'assert') return;
+        var state = get('state');
+        if (state !== 'passed' && state !== 'failed') return; // wait until settled
+        var id = get('id');
+        if (id && seenAsserts[id]) return;
+        if (id) seenAsserts[id] = 1;
+        assertRing.push({
+          t: new Date().getTime(),
+          name: 'assert',
+          args: String(get('message') || '').replace(/\*\*/g, ''), // strip markdown bold
+          state: state,
+        });
+        if (assertRing.length > commandsDepth) assertRing.shift();
+      } catch (e) {
+        /* skipped assertion */
+      }
+    });
   }
 
   /* ---- failure evidence: command log + DOM snapshot (+ backtrack) ----- */
@@ -423,6 +457,7 @@
             error: (err && err.message) || null,
             totalCommands: cmdCount, // full count; `commands` holds only the last N
             commands: cmds,
+            asserts: assertRing.slice(), // assertions, for the terminal log
           });
         }
 
@@ -462,6 +497,8 @@
         cmdRing = [];
         currentCmd = null;
         conRing = [];
+        assertRing = [];
+        seenAsserts = {};
       } catch (e) {
         /* evidence collection must never mask the real failure */
       }
