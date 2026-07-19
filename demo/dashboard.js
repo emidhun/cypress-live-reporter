@@ -68,12 +68,14 @@ async function stateFor(runId) {
   };
 }
 
+const NOCACHE = { 'cache-control': 'no-store, max-age=0' };
+
 async function handle(req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   if (url.pathname === '/api/state') {
     const state = await stateFor(url.searchParams.get('run_id'));
-    res.writeHead(200, { 'content-type': 'application/json' });
+    res.writeHead(200, Object.assign({ 'content-type': 'application/json' }, NOCACHE));
     return res.end(JSON.stringify(state));
   }
 
@@ -106,7 +108,7 @@ async function handle(req, res) {
     return res.end(html);
   }
 
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  res.writeHead(200, Object.assign({ 'content-type': 'text/html; charset=utf-8' }, NOCACHE));
   res.end(PAGE);
 }
 
