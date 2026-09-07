@@ -49,7 +49,8 @@ SELECT
   (e.payload->>'totalDuration')::bigint    AS duration_ms,
   l.last_ts                                AS last_event_at,
   s.payload->'ci'->>'pr'                   AS pr,
-  s.payload->'ci'->>'triggeredBy'          AS triggered_by
+  s.payload->'ci'->>'triggeredBy'          AS triggered_by,
+  s.payload->>'projectId'                  AS project_id
 FROM (
   SELECT DISTINCT ON (run_id) *
   FROM clr_events
@@ -67,6 +68,20 @@ LEFT JOIN (
   FROM clr_events
   GROUP BY run_id
 ) l ON l.run_id = s.run_id;
+
+------------------------------------------------------------------------------
+-- clr_run_project — the run -> project mapping, one row per run.
+-- projectId is stamped on every event envelope (like runId), so any event
+-- carries it; DISTINCT ON picks the earliest per run. Runs with no CLR_PROJECT_ID
+-- set are simply absent from this view.
+------------------------------------------------------------------------------
+CREATE OR REPLACE VIEW clr_run_project AS
+SELECT DISTINCT ON (run_id)
+  run_id,
+  payload->>'projectId' AS project_id
+FROM clr_events
+WHERE payload->>'projectId' IS NOT NULL
+ORDER BY run_id, seq;
 
 ------------------------------------------------------------------------------
 -- clr_tests_live — current state of every test, one row per (run, testId).

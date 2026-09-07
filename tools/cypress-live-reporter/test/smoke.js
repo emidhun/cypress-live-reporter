@@ -10,7 +10,11 @@
  *      screenshot base64, details passthrough).
  *   B. Same lifecycle against an UNREACHABLE webhook — asserts no crash and
  *      that the final flush completes within its hard cap.
- *   C. No sink env vars — asserts exactly one warning + self-disable.
+ *   C. No sink configured in Cypress env — asserts exactly one warning +
+ *      self-disable.
+ *
+ * All plugin config is passed via `config.env` (the Cypress env surface);
+ * only genuine CI provenance (GITHUB_*) is set on process.env.
  *
  * Run: node tools/cypress-live-reporter/test/smoke.js
  */
@@ -65,15 +69,20 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
   const port = server.address().port;
 
   const RUN_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-  process.env.CLR_WEBHOOK_URL = `http://127.0.0.1:${port}/hook`;
-  process.env.CLR_WEBHOOK_TOKEN = 'secret-token';
-  process.env.CLR_RUN_ID = RUN_ID;
   process.env.GITHUB_ACTOR = 'octocat';
   process.env.GITHUB_REF = 'refs/pull/42/merge';
-  delete process.env.CLR_PG_URL;
 
   const { on, handlers } = fakeRegistrar();
-  const config = { projectRoot, env: {} };
+  const config = {
+    projectRoot,
+    env: {
+      CLR_WEBHOOK: `http://127.0.0.1:${port}/hook`,
+      CLR_WEBHOOK_TOKEN: 'secret-token',
+      CLR_RUN_ID: RUN_ID,
+      CLR_FINAL_FLUSH_MS: 3000,
+      CLR_TIMEOUT_MS: 1000,
+    },
+  };
   const returnedConfig = livePlugin(on, config);
 
   ok('livePlugin returns the config object', () => assert.strictEqual(returnedConfig, config));
@@ -157,20 +166,22 @@ async function scenarioCaptureServer(projectRoot, screenshotPath) {
     assert.strictEqual(ev.totals.failed, 1);
   });
 
-  delete process.env.CLR_RUN_ID;
-  delete process.env.CLR_WEBHOOK_TOKEN;
   delete process.env.GITHUB_ACTOR;
   delete process.env.GITHUB_REF;
 }
 
 async function scenarioUnreachable(projectRoot, screenshotPath) {
   console.log('\nScenario B: full lifecycle against an unreachable webhook');
-  // port 9 (discard) — nothing listens there
-  process.env.CLR_WEBHOOK_URL = 'http://127.0.0.1:9/hook';
-  delete process.env.CLR_PG_URL;
-
   const { on, handlers } = fakeRegistrar();
-  const config = { projectRoot, env: {} };
+  const config = {
+    projectRoot,
+    // port 9 (discard) — nothing listens there
+    env: {
+      CLR_WEBHOOK: 'http://127.0.0.1:9/hook',
+      CLR_FINAL_FLUSH_MS: 3000,
+      CLR_TIMEOUT_MS: 1000,
+    },
+  };
 
   let flushMs = null;
   await (async () => {
@@ -187,10 +198,7 @@ async function scenarioUnreachable(projectRoot, screenshotPath) {
 }
 
 async function scenarioSelfDisable() {
-  console.log('\nScenario C: no sink env vars → warn once + self-disable');
-  delete process.env.CLR_WEBHOOK_URL;
-  delete process.env.CLR_PG_URL;
-
+  console.log('\nScenario C: no sink configured in Cypress env → warn once + self-disable');
   const warnings = [];
   const origWarn = console.warn;
   console.warn = (...args) => warnings.push(args.join(' '));
@@ -222,9 +230,7 @@ async function scenarioSelfDisable() {
 }
 
 (async () => {
-  const projectRoot = makeTempProject({
-    performance: { finalFlushMs: 3000, timeoutMs: 1000 },
-  });
+  const projectRoot = makeTempProject();
   const screenshotPath = path.join(
     projectRoot,
     'login -- shows an error on bad password (failed) (attempt 2).png'

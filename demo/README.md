@@ -3,7 +3,8 @@
 A tiny todo app + a real Cypress suite wired to cypress-live-reporter. The
 suite has 5 passing tests and one **intentional failure** (which retries once)
 so every event type gets exercised: lifecycle, live tests, retry, screenshot,
-DOM snapshot, and DOM backtrack (`clr.config.json` sets `backtrackDepth: 2`).
+DOM snapshot, and DOM backtrack (`cypress.config.js` sets `CLR_DOM_BACKTRACK: 2`
+in its `env` block).
 
 ## Run it
 

@@ -20,6 +20,8 @@ const zlib = require('zlib');
 const { PNG_BYTES, makeTempProject, fakeRegistrar, fireLifecycle } = require('./helpers');
 const { livePlugin } = require('../plugin');
 
+// CLR_PG_URL / CLR_RUN_ID are this test's OWN inputs; they are handed to the
+// plugin through Cypress `env` (config.env.CLR_DB / CLR_RUN_ID) below.
 const PG_URL = process.env.CLR_PG_URL;
 if (!PG_URL) {
   console.error('CLR_PG_URL is required for the integration test');
@@ -27,8 +29,6 @@ if (!PG_URL) {
 }
 
 const RUN_ID = process.env.CLR_RUN_ID || 'a3bb189e-8bf9-4888-9912-ace4e6543002';
-process.env.CLR_RUN_ID = RUN_ID;
-delete process.env.CLR_WEBHOOK_URL;
 
 process.on('unhandledRejection', (err) => {
   console.error('FAIL: unhandled rejection escaped the plugin:', err);
@@ -38,9 +38,7 @@ process.on('unhandledRejection', (err) => {
 (async () => {
   const { Client } = require('pg');
 
-  const projectRoot = makeTempProject({
-    performance: { finalFlushMs: 8000, timeoutMs: 3000 },
-  });
+  const projectRoot = makeTempProject();
   const screenshotPath = path.join(
     projectRoot,
     'login -- shows an error on bad password (failed) (attempt 2).png'
@@ -48,7 +46,15 @@ process.on('unhandledRejection', (err) => {
   fs.writeFileSync(screenshotPath, PNG_BYTES);
 
   const { on, handlers } = fakeRegistrar();
-  const config = { projectRoot, env: {} };
+  const config = {
+    projectRoot,
+    env: {
+      CLR_DB: PG_URL,
+      CLR_RUN_ID: RUN_ID,
+      CLR_FINAL_FLUSH_MS: 8000,
+      CLR_TIMEOUT_MS: 3000,
+    },
+  };
   livePlugin(on, config);
   assert.strictEqual(config.env.clr.enabled, true, 'plugin active in pg mode');
 

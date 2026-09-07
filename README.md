@@ -34,18 +34,18 @@ setupNodeEvents(on, config) {
 require('../../tools/cypress-live-reporter/support');
 ```
 
-**3. Point it at a sink** — `.env` (auto-detected):
+**3. Point it at a sink** — via the Cypress `env` (auto-detected). Simplest is `cypress.env.json`:
 
-```bash
-CLR_PG_URL=postgres://user:pass@host:5432/db      # postgres mode  (npm i -D pg)
-# — or —
-CLR_WEBHOOK_URL=https://your-endpoint/hook        # webhook mode
+```json
+{ "CLR_DB": "postgres://user:pass@host:5432/db" }
 ```
+
+That's postgres mode (`npm i -D pg`). For webhook mode use `"CLR_WEBHOOK": "https://your-endpoint/hook"` instead. In CI, set `CYPRESS_CLR_DB` / `CYPRESS_CLR_WEBHOOK` as environment variables — Cypress folds any `CYPRESS_`-prefixed var into `env`. Every setting lives here; see the [configuration reference](./tools/cypress-live-reporter/README.md#configuration-cypress-env).
 
 **Postgres mode — create the schema first (required).** The plugin does **not** create tables; because all sink errors are swallowed, if the table is missing every insert is silently dropped and your dashboard stays empty. Apply the schema once before your first run:
 
 ```bash
-psql "$CLR_PG_URL" -f tools/cypress-live-reporter/schema.sql
+psql "postgres://user:pass@host:5432/db" -f tools/cypress-live-reporter/schema.sql
 ```
 
 That file creates the append-only table (below) plus the four dashboard views. If you'd rather run the DDL by hand, this is the required table:
@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS clr_events_ts_idx       ON clr_events (ts DESC);
 
 The **views** (`clr_runs`, `clr_tests_live`, `clr_specs`, `clr_artifacts`) are what the dashboard reads — they're in [`schema.sql`](./tools/cypress-live-reporter/schema.sql), so running that file is the simplest path. (Webhook mode needs no schema — you own the receiver.)
 
-Run your suite as normal (`npx cypress run`). If neither env var is set, the plugin prints **one** warning and self-disables — it never throws.
+Run your suite as normal (`npx cypress run`). If neither `CLR_DB` nor `CLR_WEBHOOK` is set, the plugin prints **one** warning and self-disables — it never throws.
 
 > Try it end-to-end in 60 seconds with the bundled demo app + dashboard: see **[demo/README.md](./demo/README.md)**.
 

@@ -23,16 +23,48 @@ const { createSink, createLogger } = require('./sinks');
 
 const TAG = '[cypress-live-reporter]';
 
-// .env support is optional — never a hard dependency
-try {
-  require('dotenv').config();
-} catch (err) {
-  /* dotenv not installed — fine */
+// ---------------------------------------------------------------------------
+// Configuration — one surface: Cypress `env`.
+//
+// Every setting is read from `config.env`, which Cypress populates from
+// (lowest → highest precedence): cypress.env.json → the `env` block in
+// cypress.config.js → `CYPRESS_*` OS env vars → `--env` on the CLI. That is the
+// same place Cypress keeps all other plugin config, so there is no sidecar file
+// and no bespoke `process.env` contract to remember.
+//
+// The one thing NOT read here is CI provenance (branch, commit, PR, build URL):
+// that comes from the runner's own OS env (GITHUB_*, CI_*) in ciMetadata(),
+// because that is where CI systems put it.
+// ---------------------------------------------------------------------------
+
+function envBool(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const s = String(value).trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'yes' || s === 'on') return true;
+  if (s === 'false' || s === '0' || s === 'no' || s === 'off') return false;
+  return fallback;
 }
 
+function envInt(value, fallback) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function envStr(value, fallback) {
+  return value === undefined || value === null || value === '' ? fallback : String(value);
+}
+
+// The resolved default configuration — the exact shape the rest of the plugin
+// consumes. readConfig() overlays Cypress env on top of these.
 const DEFAULTS = {
   enabled: true,
   debug: false,
+  runId: null,
+  projectId: null,
+  db: null,
+  webhook: null,
+  webhookToken: null,
   events: { runLifecycle: true, liveTests: true },
   screenshots: { enabled: true, storage: 'db' },
   commands: { enabled: true, depth: 20 },
@@ -43,31 +75,58 @@ const DEFAULTS = {
   performance: { maxParallelUploads: 3, timeoutMs: 4000, finalFlushMs: 10000 },
 };
 
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function deepMerge(base, over) {
-  const out = Object.assign({}, base);
-  if (!isPlainObject(over)) return out;
-  for (const key of Object.keys(over)) {
-    out[key] =
-      isPlainObject(base[key]) && isPlainObject(over[key])
-        ? deepMerge(base[key], over[key])
-        : over[key];
-  }
-  return out;
-}
-
-function loadUserConfig(projectRoot, log) {
-  try {
-    const file = path.join(projectRoot || process.cwd(), 'clr.config.json');
-    if (!fs.existsSync(file)) return {};
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (err) {
-    log('could not read clr.config.json:', err && err.message);
-    return {};
-  }
+// Resolve the effective config from Cypress env (config.env). Keys are the
+// documented CLR_* names; unknown keys are ignored and missing keys fall back
+// to DEFAULTS. Values arriving as strings (CYPRESS_* / --env) are coerced.
+function readConfig(config) {
+  const e = (config && config.env) || {};
+  const d = DEFAULTS;
+  return {
+    enabled: envBool(e.CLR_ENABLED, d.enabled),
+    debug: envBool(e.CLR_DEBUG, d.debug),
+    runId: envStr(e.CLR_RUN_ID, d.runId),
+    projectId: envStr(e.CLR_PROJECT_ID, d.projectId),
+    db: envStr(e.CLR_DB, d.db),
+    webhook: envStr(e.CLR_WEBHOOK, d.webhook),
+    webhookToken: envStr(e.CLR_WEBHOOK_TOKEN, d.webhookToken),
+    events: {
+      runLifecycle: envBool(e.CLR_RUN_LIFECYCLE, d.events.runLifecycle),
+      liveTests: envBool(e.CLR_LIVE_TESTS, d.events.liveTests),
+    },
+    screenshots: {
+      enabled: envBool(e.CLR_SCREENSHOTS, d.screenshots.enabled),
+      storage: envStr(e.CLR_SCREENSHOTS_STORAGE, d.screenshots.storage),
+    },
+    commands: {
+      enabled: envBool(e.CLR_COMMANDS, d.commands.enabled),
+      depth: envInt(e.CLR_COMMANDS_DEPTH, d.commands.depth),
+    },
+    console: {
+      enabled: envBool(e.CLR_CONSOLE, d.console.enabled),
+      depth: envInt(e.CLR_CONSOLE_DEPTH, d.console.depth),
+    },
+    stdout: {
+      enabled: envBool(e.CLR_STDOUT, d.stdout.enabled),
+      maxBytes: envInt(e.CLR_STDOUT_MAX_BYTES, d.stdout.maxBytes),
+    },
+    dom: {
+      enabled: envBool(e.CLR_DOM, d.dom.enabled),
+      storage: envStr(e.CLR_DOM_STORAGE, d.dom.storage),
+      backtrackDepth: envInt(e.CLR_DOM_BACKTRACK, d.dom.backtrackDepth),
+    },
+    s3: {
+      bucket: envStr(e.CLR_S3_BUCKET, d.s3.bucket),
+      region: envStr(e.CLR_S3_REGION, d.s3.region),
+      prefix: envStr(e.CLR_S3_PREFIX, d.s3.prefix),
+      endpoint: envStr(e.CLR_S3_ENDPOINT, d.s3.endpoint),
+      publicBaseUrl: envStr(e.CLR_S3_PUBLIC_BASE_URL, d.s3.publicBaseUrl),
+    },
+    performance: {
+      maxParallelUploads: envInt(e.CLR_MAX_PARALLEL_UPLOADS, d.performance.maxParallelUploads),
+      timeoutMs: envInt(e.CLR_TIMEOUT_MS, d.performance.timeoutMs),
+      finalFlushMs: envInt(e.CLR_FINAL_FLUSH_MS, d.performance.finalFlushMs),
+    },
+  };
 }
 
 function ciMetadata() {
@@ -121,32 +180,35 @@ function livePlugin(on, config, opts) {
 }
 
 function setup(on, config, opts) {
-  const log = createLogger({ debug: process.env.CLR_DEBUG === '1' });
-  const cfg = deepMerge(DEFAULTS, loadUserConfig(config && config.projectRoot, log));
-  const debug = !!(cfg.debug || process.env.CLR_DEBUG === '1');
-  cfg.debug = debug;
+  const cfg = readConfig(config);
+  const debug = cfg.debug;
+  const log = createLogger({ debug });
 
   if (cfg.enabled === false) {
     return disable(config);
   }
 
   // ---- sink autodetect -------------------------------------------------
-  const pgUrl = process.env.CLR_PG_URL;
-  const webhookUrl = process.env.CLR_WEBHOOK_URL;
+  const pgUrl = cfg.db;
+  const webhookUrl = cfg.webhook;
   if (!pgUrl && !webhookUrl) {
-    console.warn(`${TAG} no CLR_PG_URL or CLR_WEBHOOK_URL set — live reporting disabled`);
+    console.warn(`${TAG} no CLR_DB or CLR_WEBHOOK set in Cypress env — live reporting disabled`);
     return disable(config);
   }
 
   const sink = createSink({
     mode: pgUrl ? 'pg' : 'webhook',
     url: pgUrl || webhookUrl,
-    token: process.env.CLR_WEBHOOK_TOKEN || null,
+    token: cfg.webhookToken,
     config: cfg,
   });
 
-  // env override lets parallel CI machines report into one shared run
-  const runId = process.env.CLR_RUN_ID || randomUUID();
+  // CLR_RUN_ID override lets parallel CI machines report into one shared run;
+  // otherwise each run gets a fresh UUID.
+  const runId = cfg.runId || randomUUID();
+  // Project grouping: many runs roll up under one human-readable project id
+  // (e.g. "todos-web"). Null when unset — runs still work, just unmapped.
+  const projectId = cfg.projectId || null;
   let seq = 0;
   // the test currently executing, learned from the browser's test:start
   // stream — Cypress runs one test at a time per process, so this reliably
@@ -198,6 +260,7 @@ function setup(on, config, opts) {
     try {
       const event = Object.assign(
         { runId, seq: ++seq, ts: new Date().toISOString(), type },
+        projectId ? { projectId } : null,
         payload
       );
       sink.send(event);
@@ -411,8 +474,15 @@ function setup(on, config, opts) {
     },
   };
 
-  log('active — mode:', pgUrl ? 'postgres' : 'webhook', 'runId:', runId);
+  log(
+    'active — mode:',
+    pgUrl ? 'postgres' : 'webhook',
+    'runId:',
+    runId,
+    'projectId:',
+    projectId || '(none)'
+  );
   return config;
 }
 
-module.exports = { livePlugin, DEFAULTS };
+module.exports = { livePlugin, DEFAULTS, readConfig };

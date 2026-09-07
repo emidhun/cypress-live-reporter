@@ -13,7 +13,7 @@ const { processArtifact } = require('./storage');
 const TAG = '[cypress-live-reporter]';
 
 function createLogger(config) {
-  const debug = !!((config && config.debug) || process.env.CLR_DEBUG === '1');
+  const debug = !!(config && config.debug);
   return function log() {
     if (!debug) return;
     try {

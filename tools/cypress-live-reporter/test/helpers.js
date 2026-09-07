@@ -20,10 +20,11 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function makeTempProject(config) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clr-smoke-'));
-  fs.writeFileSync(path.join(dir, 'clr.config.json'), JSON.stringify(config));
-  return dir;
+// A throwaway project root — just a temp dir to drop screenshot files into.
+// Config no longer lives on disk (it's read from Cypress `env`), so there is
+// nothing to write here.
+function makeTempProject() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'clr-smoke-'));
 }
 
 function fakeRegistrar() {

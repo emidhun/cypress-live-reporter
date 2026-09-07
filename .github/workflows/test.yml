@@ -23,8 +23,8 @@ jobs:
       - name: Syntax-check every JS file
         run: git ls-files '*.js' | xargs -n1 node --check
 
-      - name: Validate example config parses
-        run: node -e "JSON.parse(require('fs').readFileSync('tools/cypress-live-reporter/clr.config.example.json','utf8'))"
+      - name: Validate example env parses
+        run: node -e "JSON.parse(require('fs').readFileSync('tools/cypress-live-reporter/cypress.env.example.json','utf8'))"
 
       - name: Smoke test (capture server, unreachable sink, self-disable)
         run: node tools/cypress-live-reporter/test/smoke.js

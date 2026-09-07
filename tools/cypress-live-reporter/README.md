@@ -6,13 +6,14 @@
 
 Self-hosted live reporting for Cypress. Streams run/spec/test lifecycle events and failure evidence (screenshots + a serialized DOM snapshot) to **Postgres** or a **webhook**, so you can build a real-time dashboard (e.g. in ToolJet) on a free stack — a replacement for Cypress Cloud's live status and failure artifacts.
 
-- **Zero-config**: two `require` lines + one env var. Every feature defaults to **ON**.
-- **Zero required dependencies**: `pg`, `dotenv`, `@aws-sdk/client-s3` are all lazy and optional. Node 18+.
+- **Zero-config**: two `require` lines + one Cypress env value (`CLR_DB` or `CLR_WEBHOOK`). Every feature defaults to **ON**.
+- **One config surface**: everything is read from Cypress `env` — `cypress.env.json`, the `env` block in `cypress.config.js`, or `CYPRESS_*` variables. No sidecar config file, no bespoke `process.env` contract.
+- **Zero required dependencies**: `pg` and `@aws-sdk/client-s3` are lazy and optional. Node 18+.
 - **Can never break your run**: every handler is wrapped; errors degrade to dropped events. No handler awaits network I/O (except one bounded flush at the very end of the run).
 
 ---
 
-## Install (3 steps)
+## Install
 
 **1. `cypress.config.js`**
 
@@ -32,24 +33,31 @@ module.exports = defineConfig({
 require('../../tools/cypress-live-reporter/support');
 ```
 
-**3. `.env`** (or real env vars — `.env` is loaded via optional `dotenv`)
+**3. Point it at a sink — via Cypress `env`.** The simplest is `cypress.env.json` in your project root:
 
-```bash
-# EITHER: postgres mode (auto-selected)
-CLR_PG_URL=postgres://user:pass@host:5432/db
-# → npm i -D pg   and apply schema.sql once:  psql "$CLR_PG_URL" -f tools/cypress-live-reporter/schema.sql
-
-# OR: webhook mode (auto-selected)
-CLR_WEBHOOK_URL=https://your-endpoint.example.com/hook
-CLR_WEBHOOK_TOKEN=optional-bearer-token
+```json
+{
+  "CLR_DB": "postgres://user:pass@host:5432/db"
+}
 ```
 
-If **neither** env var is set, the plugin prints one warning and self-disables — it never throws and never breaks the run.
+That's the entire configuration for **postgres mode** (auto-selected when `CLR_DB` is set). For **webhook mode** instead:
+
+```json
+{
+  "CLR_WEBHOOK": "https://your-endpoint.example.com/hook",
+  "CLR_WEBHOOK_TOKEN": "optional-bearer-token"
+}
+```
+
+In CI, prefer real environment variables: Cypress folds any `CYPRESS_`-prefixed var into `env`, so `CYPRESS_CLR_DB=…` sets `CLR_DB` (see [CI](../../docs/CI.md)). If **neither** `CLR_DB` nor `CLR_WEBHOOK` is set, the plugin prints one warning and self-disables — it never throws and never breaks the run.
+
+> Postgres mode needs the `pg` package (`npm i -D pg`) and the schema applied once — the next step.
 
 **4. Postgres only — create the schema (required).** The plugin does not create tables. Sink errors are swallowed, so a missing table means every insert is silently dropped (empty dashboard, no error). Run this once before your first run:
 
 ```bash
-psql "$CLR_PG_URL" -f tools/cypress-live-reporter/schema.sql
+psql "postgres://user:pass@host:5432/db" -f tools/cypress-live-reporter/schema.sql
 ```
 
 It creates the append-only `clr_events` table + indexes and the four dashboard views. The core table, if you prefer to run the DDL by hand:
@@ -72,37 +80,65 @@ The dashboard views live in [`schema.sql`](./schema.sql) — running that file i
 
 ---
 
-## Configuration (`clr.config.json`, optional)
+## Configuration (Cypress `env`)
 
-Everything is **ON by default**. Create `clr.config.json` in your project root only to turn things off or change storage — it is deep-merged over the defaults. See [`clr.config.example.json`](./clr.config.example.json) for every key documented.
+Everything is **ON by default** — you only set keys to point at a sink or turn features off. There is **one** place to set them: the Cypress `env`. You can populate it three ways, in ascending precedence:
+
+```jsonc
+// 1. cypress.env.json — best for local, per-developer settings
+{ "CLR_DB": "postgres://…", "CLR_PROJECT_ID": "todos-web", "CLR_DOM_BACKTRACK": 2 }
+```
+```js
+// 2. the env block in cypress.config.js — checked-in project defaults
+module.exports = defineConfig({ e2e: { env: { CLR_PROJECT_ID: 'todos-web' } } });
+```
+```bash
+# 3. CYPRESS_-prefixed variables — best for CI (overrides the above)
+CYPRESS_CLR_DB=postgres://…  CYPRESS_CLR_PROJECT_ID=todos-web
+```
+
+Values may be JSON types (in `cypress.env.json`) or strings (from `CYPRESS_*` / `--env`); booleans and numbers are coerced either way.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | Master switch. |
-| `debug` | `false` | Log sends + swallowed errors (`CLR_DEBUG=1` env works too). |
-| `events.runLifecycle` | `true` | `run:start` / `spec:start` / `spec:end` / `run:end` (Node side). |
-| `events.liveTests` | `true` | `test:start` / `test:attempt:end` (browser side, live per it-block). |
-| `screenshots.enabled` | `true` | Ship failure screenshots. |
-| `screenshots.storage` | `"db"` | `"db"` = base64 in payload · `"s3"` = upload, payload carries `url`. |
-| `commands.enabled` | `true` | On failure, ship the last N commands (name + args + state + ms) — a command log like Cypress Cloud. Cheap (no DOM). |
-| `commands.depth` | `20` | How many commands to keep before failure (1–50). |
-| `console.enabled` | `true` | On failure, ship the last N browser console lines (the app's `console.*`) as `artifact:console`. |
-| `console.depth` | `8` | How many console lines to keep before failure (1–200). Default 8 = the sweet spot. |
-| `stdout.enabled` | `true` | For failing specs, ship node/task terminal output (plugin-process stdout) as `artifact:stdout`. Not the Cypress reporter block (separate process). |
-| `stdout.maxBytes` | `65536` | Cap on captured stdout per spec (keeps the tail). |
-| `dom.enabled` | `true` | Serialize the DOM at the moment of failure. |
-| `dom.storage` | `"db"` | Independent of `screenshots.storage`. |
-| `dom.backtrackDepth` | `0` | 1–5: also keep DOM snapshots of the last N commands before failure. **Keep 0 in CI gates** (see Performance). |
-| `s3.bucket` | `null` | Required for any `"s3"` mode. Missing → warn once, fall back to db. |
-| `s3.region` | `"ap-south-1"` | |
-| `s3.prefix` | `"clr/"` | Key layout: `{prefix}{runId}/{sanitized testId}/attempt-N/{name}`. |
-| `s3.endpoint` | `null` | Set for R2/MinIO (enables `forcePathStyle`). Creds from standard AWS env. |
-| `s3.publicBaseUrl` | `null` | Optional CDN base for artifact links. |
-| `performance.maxParallelUploads` | `3` | Concurrency gate; overflow queues FIFO. |
-| `performance.timeoutMs` | `4000` | Per-send timeout (webhook abort / pg statement timeout). |
-| `performance.finalFlushMs` | `10000` | Hard cap on the single end-of-run drain. |
+| **Connection & identity** | | |
+| `CLR_DB` | — | Postgres connection string → **postgres mode**. |
+| `CLR_WEBHOOK` | — | Webhook URL → **webhook mode** (used only when `CLR_DB` is unset). |
+| `CLR_WEBHOOK_TOKEN` | — | Bearer token sent as `Authorization` on webhook requests. |
+| `CLR_RUN_ID` | random UUID | Override the run id. The **same** value across parallel machines merges them into one run (must be UUID-shaped in postgres mode). |
+| `CLR_PROJECT_ID` | — | Free-form id grouping many runs under one project (e.g. `todos-web`). See [Grouping runs by project](#grouping-runs-by-project). |
+| **Master** | | |
+| `CLR_ENABLED` | `true` | Master switch; `false` disables everything silently. |
+| `CLR_DEBUG` | `false` | Log every send + swallowed error to the console. |
+| **Events** | | |
+| `CLR_RUN_LIFECYCLE` | `true` | `run:start` / `spec:start` / `spec:end` / `run:end` (Node side). |
+| `CLR_LIVE_TESTS` | `true` | `test:start` / `test:attempt:end` (browser side, live per it-block). |
+| **Failure evidence** | | |
+| `CLR_SCREENSHOTS` | `true` | Ship failure screenshots. |
+| `CLR_SCREENSHOTS_STORAGE` | `db` | `db` = base64 in payload · `s3` = upload, payload carries `url`. |
+| `CLR_COMMANDS` | `true` | On failure, ship the last N commands (name + args + state + ms) — a command log like Cypress Cloud. Cheap (no DOM). |
+| `CLR_COMMANDS_DEPTH` | `20` | How many commands to keep before failure (1–50). |
+| `CLR_CONSOLE` | `true` | On failure, ship the last N browser console lines (the app's `console.*`). |
+| `CLR_CONSOLE_DEPTH` | `8` | How many console lines to keep (1–200). Default 8 = the sweet spot. |
+| `CLR_STDOUT` | `true` | For failing specs, ship node/task terminal output (plugin-process stdout). |
+| `CLR_STDOUT_MAX_BYTES` | `65536` | Cap on captured stdout per spec (keeps the tail). |
+| `CLR_DOM` | `true` | Serialize the DOM at the moment of failure. |
+| `CLR_DOM_STORAGE` | `db` | `db` or `s3` — independent of `CLR_SCREENSHOTS_STORAGE`. |
+| `CLR_DOM_BACKTRACK` | `0` | 1–5: also snapshot the DOM of the last N commands before failure. **Keep 0 in CI gates** (see Performance). |
+| **S3 (only for `s3` storage)** | | |
+| `CLR_S3_BUCKET` | — | Required for any `s3` mode. Missing → warn once, fall back to db. |
+| `CLR_S3_REGION` | `ap-south-1` | |
+| `CLR_S3_PREFIX` | `clr/` | Key layout: `{prefix}{runId}/{sanitized testId}/attempt-N/{name}`. |
+| `CLR_S3_ENDPOINT` | — | Set for R2 / MinIO (enables path-style). Creds from standard AWS env. |
+| `CLR_S3_PUBLIC_BASE_URL` | — | Optional CDN base for artifact links. |
+| **Performance** | | |
+| `CLR_MAX_PARALLEL_UPLOADS` | `3` | Concurrency gate for in-flight sends; overflow queues FIFO. |
+| `CLR_TIMEOUT_MS` | `4000` | Per-send timeout (webhook abort / pg statement timeout). |
+| `CLR_FINAL_FLUSH_MS` | `10000` | Hard cap on the single end-of-run drain. |
 
-The Node plugin injects the browser-relevant slice into `Cypress.env('clr')` automatically — `support.js` needs no configuration of its own.
+See [`cypress.env.example.json`](./cypress.env.example.json) for a copy-paste starting point. The Node plugin injects the browser-relevant slice into `Cypress.env('clr')` automatically — `support.js` needs no configuration of its own.
+
+> **Note on CI provenance.** Branch, commit, PR, build URL and actor are *not* `CLR_*` keys — they're read from the CI runner's own OS env (`GITHUB_*`, `CI_*`) automatically. You never set those; see [CI](../../docs/CI.md).
 
 ---
 
@@ -139,7 +175,7 @@ The Node plugin injects the browser-relevant slice into `Cypress.env('clr')` aut
 
 ## Event reference
 
-Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on the Node side, so browser and Node events share one ordering), an ISO `ts`, and `type`.
+Every event carries `runId` (uuid), a **monotonic per-run `seq`** (assigned on the Node side, so browser and Node events share one ordering), an ISO `ts`, and `type`. When a project id is configured it also carries `projectId` (see [Grouping runs by project](#grouping-runs-by-project)).
 
 | Event | Origin | Fired on | Payload highlights |
 | --- | --- | --- | --- |
@@ -161,14 +197,25 @@ CI metadata is read from GitHub Actions (`GITHUB_REF_NAME`, `GITHUB_SHA`, `GITHU
 
 ### Parallel CI machines
 
-`runId` defaults to a fresh UUID per Cypress process. To make several parallel machines report into **one** dashboard run, set the same id on all of them:
+`runId` defaults to a fresh UUID per Cypress process, so N machines report as N runs. To merge them into **one** run, give them all the same id — set it as a `CYPRESS_`-prefixed variable so Cypress folds it into `env`:
 
 ```yaml
 env:
-  CLR_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}   # any stable uuid-ish string per pipeline
+  CYPRESS_CLR_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
 ```
 
-Note: `CLR_RUN_ID` must be a valid UUID in postgres mode (the `run_id` column is `uuid`) — e.g. derive one with `uuidgen` or hash your build id into UUID form.
+Note: in postgres mode the `run_id` column is `uuid`, so the value must be UUID-shaped — derive one with `uuidgen` or hash your build id. There is also a `seq`-collision caveat when merging; the reliable alternative is to keep runs separate and group them by `project_id` or `build_url`. See [CI](../../docs/CI.md) for the full recipe.
+
+### Grouping runs by project
+
+`runId` is unique per run; `projectId` groups many runs under one human-readable project (e.g. `todos-web`, `tooljet-ce`). Set `CLR_PROJECT_ID` in the Cypress env — `cypress.env.json` locally, or `CYPRESS_CLR_PROJECT_ID` in CI:
+
+```json
+// cypress.env.json
+{ "CLR_PROJECT_ID": "todos-web" }
+```
+
+Unlike `CLR_RUN_ID`, `projectId` is a **free-form string** — no UUID constraint. It's stamped onto every event envelope, so the mapping survives even if run-lifecycle events are disabled. Query it via the `clr_run_project` view (`run_id, project_id`, one row per run) or the `project_id` column on `clr_runs`. Runs with no `CLR_PROJECT_ID` set are simply absent from `clr_run_project`.
 
 ### Already have an `on('task')`? (`registerTask`)
 

@@ -213,7 +213,10 @@ Columns exposed by each dashboard view (see
 **`clr_runs`** — `run_id, status, branch, commit, pr, triggered_by, build_url,
 machine, browser, browser_version, cypress_version, total_specs, total_tests,
 passed, failed, pending, skipped, duration_ms, started_at, ended_at,
-last_event_at`
+last_event_at, project_id`
+
+**`clr_run_project`** — `run_id, project_id` — the run→project mapping, one row
+per run that had `CLR_PROJECT_ID` set.
 
 **`clr_tests_live`** — `run_id, test_id, title, spec, state, attempt,
 duration_ms, error, updated_at`

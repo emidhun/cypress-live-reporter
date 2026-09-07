@@ -96,7 +96,7 @@ returns plain HTML — the `.html.gz` is served with `Content-Encoding: gzip`.)
 
 ## Building it in ToolJet
 
-1. Connect your Postgres (`CLR_PG_URL`'s database) as a ToolJet datasource.
+1. Connect your Postgres (the database behind `CLR_DB`) as a ToolJet datasource.
 2. Add the four queries above; set each to auto-refresh (2–3s).
 3. Lay out:
    - **Table** bound to the runs query (left). Its `selectedRow.run_id` feeds the others.

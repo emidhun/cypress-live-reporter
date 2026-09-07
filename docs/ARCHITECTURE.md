@@ -118,6 +118,7 @@ own payload:
 | Field | Meaning |
 |---|---|
 | `runId` | the run's UUID |
+| `projectId` | optional free-form project id (`CLR_PROJECT_ID`) grouping many runs; present only when set |
 | `seq` | a **monotonic per-run counter**, assigned on the Node side |
 | `ts` | ISO timestamp |
 | `type` | the event type (`run:start`, `test:start`, …) |
