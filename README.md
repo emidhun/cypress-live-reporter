@@ -2,11 +2,11 @@
 
 [![test](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml/badge.svg)](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
-[![docs](https://img.shields.io/badge/docs-rendered_page-F6B23D.svg)](https://htmlpreview.github.io/?https://github.com/emidhun/cypress-live-reporter/blob/main/docs/index.html)
+[![docs](https://img.shields.io/badge/docs-rendered_page-F6B23D.svg)](https://emidhun.github.io/cypress-live-reporter/)
 
 **A free, self-hosted replacement for Cypress Cloud's live status and failure evidence.** Streams run / spec / test lifecycle events, a command log, screenshots, and DOM snapshots to **Postgres** or a **webhook** — so you can build a real-time test dashboard (e.g. in [ToolJet](https://tooljet.com)) on a stack you own.
 
-> 📖 **[Open the rendered documentation page →](https://htmlpreview.github.io/?https://github.com/emidhun/cypress-live-reporter/blob/main/docs/index.html)** — a visual walkthrough of the quickstart, config reference, and event stream ([source](./docs/index.html)).
+> 📖 **[Open the rendered documentation page →](https://emidhun.github.io/cypress-live-reporter/)** — a visual walkthrough of the quickstart, config reference, and event stream ([source](./docs/index.html)).
 
 ```
    Cypress run  ──▶  cypress-live-reporter  ──▶  Postgres / webhook  ──▶  your dashboard
