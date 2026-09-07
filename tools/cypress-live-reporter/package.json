@@ -1,0 +1,60 @@
+{
+  "name": "cypress-live-reporter",
+  "version": "0.0.1",
+  "description": "Self-hosted live Cypress test reporting — streams run/spec/test events and failure evidence (screenshots, DOM, console, commands) to Postgres or a webhook.",
+  "keywords": [
+    "cypress",
+    "cypress-plugin",
+    "testing",
+    "e2e",
+    "test-reporter",
+    "live",
+    "dashboard",
+    "postgres",
+    "observability",
+    "self-hosted"
+  ],
+  "license": "MIT",
+  "author": "emidhun",
+  "homepage": "https://emidhun.github.io/cypress-live-reporter/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emidhun/cypress-live-reporter.git",
+    "directory": "tools/cypress-live-reporter"
+  },
+  "bugs": {
+    "url": "https://github.com/emidhun/cypress-live-reporter/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "plugin.js",
+  "exports": {
+    ".": "./plugin.js",
+    "./plugin": "./plugin.js",
+    "./support": "./support.js",
+    "./schema.sql": "./schema.sql",
+    "./cypress.env.example.json": "./cypress.env.example.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "plugin.js",
+    "sinks.js",
+    "storage.js",
+    "support.js",
+    "schema.sql",
+    "cypress.env.example.json",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "cypress": ">=10"
+  },
+  "peerDependenciesMeta": {
+    "cypress": {
+      "optional": false
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

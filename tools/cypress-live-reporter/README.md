@@ -15,13 +15,19 @@ Self-hosted live reporting for Cypress. Streams run/spec/test lifecycle events a
 
 ## Install
 
+```bash
+npm i -D cypress-live-reporter
+```
+
+> Prefer to vendor it? Copy `tools/cypress-live-reporter/` into your repo and use a relative `require('./tools/cypress-live-reporter/plugin')` instead of the package name below — everything else is identical.
+
 **1. `cypress.config.js`**
 
 ```js
 module.exports = defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      return require('./tools/cypress-live-reporter/plugin').livePlugin(on, config);
+      return require('cypress-live-reporter/plugin').livePlugin(on, config);
     },
   },
 });
@@ -30,7 +36,7 @@ module.exports = defineConfig({
 **2. `cypress/support/e2e.js`**
 
 ```js
-require('../../tools/cypress-live-reporter/support');
+require('cypress-live-reporter/support');
 ```
 
 **3. Point it at a sink — via Cypress `env`.** The simplest is `cypress.env.json` in your project root:
@@ -57,7 +63,7 @@ In CI, prefer real environment variables: Cypress folds any `CYPRESS_`-prefixed 
 **4. Postgres only — create the schema (required).** The plugin does not create tables. Sink errors are swallowed, so a missing table means every insert is silently dropped (empty dashboard, no error). Run this once before your first run:
 
 ```bash
-psql "postgres://user:pass@host:5432/db" -f tools/cypress-live-reporter/schema.sql
+psql "postgres://user:pass@host:5432/db" -f node_modules/cypress-live-reporter/schema.sql
 ```
 
 It creates the append-only `clr_events` table + indexes and the four dashboard views. The core table, if you prefer to run the DDL by hand:
