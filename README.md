@@ -2,16 +2,20 @@
 
 [![test](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml/badge.svg)](https://github.com/emidhun/cypress-live-reporter/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+[![docs](https://img.shields.io/badge/docs-rendered_page-F6B23D.svg)](https://htmlpreview.github.io/?https://github.com/emidhun/cypress-live-reporter/blob/main/docs/index.html)
 
 **A free, self-hosted replacement for Cypress Cloud's live status and failure evidence.** Streams run / spec / test lifecycle events, a command log, screenshots, and DOM snapshots to **Postgres** or a **webhook** — so you can build a real-time test dashboard (e.g. in [ToolJet](https://tooljet.com)) on a stack you own.
+
+> 📖 **[Open the rendered documentation page →](https://htmlpreview.github.io/?https://github.com/emidhun/cypress-live-reporter/blob/main/docs/index.html)** — a visual walkthrough of the quickstart, config reference, and event stream ([source](./docs/index.html)).
 
 ```
    Cypress run  ──▶  cypress-live-reporter  ──▶  Postgres / webhook  ──▶  your dashboard
    (any suite)       (this plugin)               (clr_events + views)     (live, 2s refresh)
 ```
 
-- **Zero-config** — two `require` lines and one env var. Every feature defaults **on**.
-- **Zero required dependencies** — `pg`, `dotenv`, `@aws-sdk/client-s3` are all lazy/optional. Node 18+.
+- **Zero-config** — two `require` lines and one Cypress env value (`CLR_DB` or `CLR_WEBHOOK`). Every feature defaults **on**.
+- **One config surface** — everything is read from the Cypress `env`; no sidecar files. See the [configuration reference](./tools/cypress-live-reporter/README.md#configuration-cypress-env).
+- **Zero required dependencies** — `pg` and `@aws-sdk/client-s3` are lazy/optional. Node 18+.
 - **Can never break your run** — every handler is wrapped; a reporter error degrades to a dropped event, never a failed test. No handler awaits network I/O except one bounded flush at the very end.
 - **Live per it-block** — tests light up as `running → retrying → passed/failed` in real time, with the roster known up front.
 - **Failure evidence** — screenshot, DOM snapshot (queryable static HTML), and a Cypress Cloud-style command log for every failed attempt.
