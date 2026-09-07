@@ -6,7 +6,9 @@
 
 **A free, self-hosted replacement for Cypress Cloud's live status and failure evidence.** Streams run / spec / test lifecycle events, a command log, screenshots, and DOM snapshots to **Postgres** or a **webhook** — so you can build a real-time test dashboard (e.g. in [ToolJet](https://tooljet.com)) on a stack you own.
 
-> 📖 **[Open the rendered documentation page →](https://emidhun.github.io/cypress-live-reporter/)** — a visual walkthrough of the quickstart, config reference, and event stream ([source](./docs/index.html)).
+> 📖 **[Open the interactive documentation →](https://emidhun.github.io/cypress-live-reporter/)** — quickstart, full config reference, and a live event stream.
+
+[![cypress-live-reporter — self-hosted live test telemetry](./docs/preview.png)](https://emidhun.github.io/cypress-live-reporter/)
 
 ```
    Cypress run  ──▶  cypress-live-reporter  ──▶  Postgres / webhook  ──▶  your dashboard
