@@ -70,12 +70,13 @@ LEFT JOIN (
 ) l ON l.run_id = s.run_id;
 
 ------------------------------------------------------------------------------
--- clr_run_project — the run -> project mapping, one row per run.
+-- clr_run_projects — the run -> project mapping, one row per run.
 -- projectId is stamped on every event envelope (like runId), so any event
 -- carries it; DISTINCT ON picks the earliest per run. Runs with no CLR_PROJECT_ID
 -- set are simply absent from this view.
 ------------------------------------------------------------------------------
-CREATE OR REPLACE VIEW clr_run_project AS
+DROP VIEW IF EXISTS clr_run_project;   -- renamed to the plural clr_run_projects
+CREATE OR REPLACE VIEW clr_run_projects AS
 SELECT DISTINCT ON (run_id)
   run_id,
   payload->>'projectId' AS project_id

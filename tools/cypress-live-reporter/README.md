@@ -237,7 +237,7 @@ Note: in postgres mode the `run_id` column is `uuid`, so the value must be UUID-
 { "CLR_PROJECT_ID": "todos-web" }
 ```
 
-Unlike `CLR_RUN_ID`, `projectId` is a **free-form string** — no UUID constraint. It's stamped onto every event envelope, so the mapping survives even if run-lifecycle events are disabled. Query it via the `clr_run_project` view (`run_id, project_id`, one row per run) or the `project_id` column on `clr_runs`. Runs with no `CLR_PROJECT_ID` set are simply absent from `clr_run_project`.
+Unlike `CLR_RUN_ID`, `projectId` is a **free-form string** — no UUID constraint. It's stamped onto every event envelope, so the mapping survives even if run-lifecycle events are disabled. Query it via the `clr_run_projects` view (`run_id, project_id`, one row per run) or the `project_id` column on `clr_runs`. Runs with no `CLR_PROJECT_ID` set are simply absent from `clr_run_projects`.
 
 ### Already have an `on('task')`? (`registerTask`)
 
