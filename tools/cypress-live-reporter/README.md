@@ -237,7 +237,9 @@ Note: in postgres mode the `run_id` column is `uuid`, so the value must be UUID-
 { "CLR_PROJECT_ID": "todos-web" }
 ```
 
-Unlike `CLR_RUN_ID`, `projectId` is a **free-form string** — no UUID constraint. It's stamped onto every event envelope, so the mapping survives even if run-lifecycle events are disabled. Query it via the `clr_run_projects` view (`run_id, project_id`, one row per run) or the `project_id` column on `clr_runs`. Runs with no `CLR_PROJECT_ID` set are simply absent from `clr_run_projects`.
+Unlike `CLR_RUN_ID`, `projectId` is a **free-form string** — no UUID constraint. It's stamped onto every event envelope, so the mapping survives even if run-lifecycle events are disabled.
+
+**Auto-registration.** A trigger on `clr_events` picks the projectId up automatically: the first time a projectId is seen it's registered into the `clr_projects` table (`name` defaults to the id — edit it, and set `color` / `repo_url`, whenever you like), and each run is mapped into `clr_run_projects` (`run_id, project_id`, one row per run). No manual bookkeeping. Query the mapping via `clr_run_projects`, its backward-compatible singular alias `clr_run_project`, or the `project_id` column on `clr_runs` (which prefers the mapping table and falls back to the envelope). Runs with no `CLR_PROJECT_ID` set are simply absent from `clr_run_projects`.
 
 ### Already have an `on('task')`? (`registerTask`)
 

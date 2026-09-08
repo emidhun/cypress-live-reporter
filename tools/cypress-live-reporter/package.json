@@ -1,6 +1,6 @@
 {
   "name": "cypress-live-reporter",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Self-hosted live Cypress test reporting — streams run/spec/test events and failure evidence (screenshots, DOM, console, commands) to Postgres or a webhook.",
   "keywords": [
     "cypress",

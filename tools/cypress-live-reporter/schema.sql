@@ -3,6 +3,13 @@
 -- One append-only event table; all dashboard state is computed by views that
 -- pick the latest event per entity (DISTINCT ON ... ORDER BY seq DESC).
 -- Idempotent inserts rely on UNIQUE (run_id, seq).
+--
+-- Projects: every event envelope carries the run's projectId (like runId). A
+-- trigger auto-registers each new projectId into clr_projects and auto-maps the
+-- run into clr_run_projects — no manual bookkeeping. Both are real tables so
+-- display metadata (name/color) and manual re-assignments persist.
+--
+-- This file is idempotent: safe to re-run to upgrade an existing database.
 
 CREATE TABLE IF NOT EXISTS clr_events (
   id      bigserial   PRIMARY KEY,
@@ -18,10 +25,75 @@ CREATE INDEX IF NOT EXISTS clr_events_run_type_idx ON clr_events (run_id, type);
 CREATE INDEX IF NOT EXISTS clr_events_ts_idx       ON clr_events (ts DESC);
 
 ------------------------------------------------------------------------------
+-- clr_projects — the project registry, one row per projectId.
+-- Auto-registered by the trigger below (name defaults to the id and is meant to
+-- be edited afterwards). repo_url / color / archived are optional display
+-- metadata a dashboard can surface.
+------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clr_projects (
+  project_id text        PRIMARY KEY,
+  name       text        NOT NULL,
+  repo_url   text,
+  color      text,
+  archived   boolean     NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+------------------------------------------------------------------------------
+-- clr_run_projects — the run -> project mapping, one row per run.
+-- Auto-populated by the trigger from the projectId stamped on every event
+-- (first projectId seen for a run wins); a row can be updated by hand to
+-- re-assign a run. Runs with no CLR_PROJECT_ID set are simply absent.
+--
+-- Older releases shipped clr_run_projects as a VIEW; drop that first so the
+-- table can take its place when upgrading.
+------------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'clr_run_projects' AND relkind = 'v') THEN
+    EXECUTE 'DROP VIEW clr_run_projects';
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS clr_run_projects (
+  run_id     uuid PRIMARY KEY,
+  project_id text NOT NULL REFERENCES clr_projects (project_id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+------------------------------------------------------------------------------
+-- Auto-map trigger — register the project and map the run whenever an event
+-- carrying a projectId lands. Cheap (two ON CONFLICT DO NOTHING probes) and
+-- idempotent, so it does not depend on run-lifecycle events being enabled.
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION clr_automap_project() RETURNS trigger AS $$
+DECLARE
+  pid text := NEW.payload ->> 'projectId';
+BEGIN
+  IF pid IS NOT NULL THEN
+    INSERT INTO clr_projects (project_id, name)
+      VALUES (pid, pid)
+      ON CONFLICT (project_id) DO NOTHING;
+    INSERT INTO clr_run_projects (run_id, project_id)
+      VALUES (NEW.run_id, pid)
+      ON CONFLICT (run_id) DO NOTHING;
+  END IF;
+  RETURN NULL;  -- AFTER trigger: return value is ignored
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS clr_events_automap_project ON clr_events;
+CREATE TRIGGER clr_events_automap_project
+  AFTER INSERT ON clr_events
+  FOR EACH ROW
+  WHEN ((NEW.payload ->> 'projectId') IS NOT NULL)
+  EXECUTE FUNCTION clr_automap_project();
+
+------------------------------------------------------------------------------
 -- clr_runs — one row per run.
 -- status: run:end status if present; otherwise 'stale' when the newest event
 -- for the run is older than 3 minutes (killed runner / crash detection);
--- otherwise 'running'.
+-- otherwise 'running'. project_id prefers the (overridable) mapping table and
+-- falls back to the projectId on the run:start envelope.
 ------------------------------------------------------------------------------
 CREATE OR REPLACE VIEW clr_runs AS
 SELECT
@@ -50,7 +122,7 @@ SELECT
   l.last_ts                                AS last_event_at,
   s.payload->'ci'->>'pr'                   AS pr,
   s.payload->'ci'->>'triggeredBy'          AS triggered_by,
-  s.payload->>'projectId'                  AS project_id
+  COALESCE(rp.project_id, s.payload->>'projectId') AS project_id
 FROM (
   SELECT DISTINCT ON (run_id) *
   FROM clr_events
@@ -67,22 +139,15 @@ LEFT JOIN (
   SELECT run_id, max(ts) AS last_ts
   FROM clr_events
   GROUP BY run_id
-) l ON l.run_id = s.run_id;
+) l ON l.run_id = s.run_id
+LEFT JOIN clr_run_projects rp ON rp.run_id = s.run_id;
 
 ------------------------------------------------------------------------------
--- clr_run_projects — the run -> project mapping, one row per run.
--- projectId is stamped on every event envelope (like runId), so any event
--- carries it; DISTINCT ON picks the earliest per run. Runs with no CLR_PROJECT_ID
--- set are simply absent from this view.
+-- clr_run_project — backward-compatible singular alias of clr_run_projects.
+-- Kept so dashboards written against the old view name keep working.
 ------------------------------------------------------------------------------
-DROP VIEW IF EXISTS clr_run_project;   -- renamed to the plural clr_run_projects
-CREATE OR REPLACE VIEW clr_run_projects AS
-SELECT DISTINCT ON (run_id)
-  run_id,
-  payload->>'projectId' AS project_id
-FROM clr_events
-WHERE payload->>'projectId' IS NOT NULL
-ORDER BY run_id, seq;
+CREATE OR REPLACE VIEW clr_run_project AS
+SELECT run_id, project_id FROM clr_run_projects;
 
 ------------------------------------------------------------------------------
 -- clr_tests_live — current state of every test, one row per (run, testId).
@@ -180,6 +245,20 @@ FROM clr_events
 WHERE type LIKE 'artifact:%';
 
 ------------------------------------------------------------------------------
+-- Backfill — the trigger only fires on new inserts. When upgrading a database
+-- that already has events, run this once to register + map historical runs:
+--
+--   INSERT INTO clr_projects (project_id, name)
+--   SELECT DISTINCT payload->>'projectId', payload->>'projectId'
+--   FROM clr_events WHERE payload->>'projectId' IS NOT NULL
+--   ON CONFLICT DO NOTHING;
+--
+--   INSERT INTO clr_run_projects (run_id, project_id)
+--   SELECT DISTINCT ON (run_id) run_id, payload->>'projectId'
+--   FROM clr_events WHERE payload->>'projectId' IS NOT NULL
+--   ORDER BY run_id, seq
+--   ON CONFLICT (run_id) DO NOTHING;
+--
 -- Retention — run periodically (cron / pg_cron) to keep the table lean:
 --
 --   DELETE FROM clr_events WHERE ts < now() - interval '30 days';

@@ -215,8 +215,16 @@ machine, browser, browser_version, cypress_version, total_specs, total_tests,
 passed, failed, pending, skipped, duration_ms, started_at, ended_at,
 last_event_at, project_id`
 
-**`clr_run_projects`** — `run_id, project_id` — the run→project mapping, one row
-per run that had `CLR_PROJECT_ID` set.
+**`clr_projects`** — `project_id, name, repo_url, color, archived, created_at` —
+the project registry. A trigger auto-registers each new `projectId` (`name`
+defaults to the id, edit afterwards).
+
+**`clr_run_projects`** — `run_id, project_id` — the run→project mapping table,
+one row per run that had `CLR_PROJECT_ID` set. Auto-populated by the trigger
+(first projectId seen wins); a row can be edited to re-assign a run.
+
+**`clr_run_project`** — `run_id, project_id` — backward-compatible singular
+alias view of `clr_run_projects`.
 
 **`clr_tests_live`** — `run_id, test_id, title, spec, state, attempt,
 duration_ms, error, updated_at`
