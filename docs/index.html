@@ -621,7 +621,7 @@
   <div class="wrap">
     <p class="eyebrow"><span class="n">03</span> The run &amp; project model</p>
     <h2>One id to identify, one to group</h2>
-    <p class="section-lede">A run is identified by its <code>runId</code>. Set a <code>projectId</code> and every run rolls up under a readable project — queryable as the <code>clr_run_projects</code> view or the <code>project_id</code> column on <code>clr_runs</code>.</p>
+    <p class="section-lede">A run is identified by its <code>runId</code>. Set a <code>projectId</code> and a trigger on <code>clr_events</code> auto-registers it into the <code>clr_projects</code> table and maps the run into <code>clr_run_projects</code> — no manual bookkeeping. Query the mapping there, or via the <code>project_id</code> column on <code>clr_runs</code>.</p>
 
     <div class="id-grid">
       <div class="id-card">
