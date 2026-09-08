@@ -2,12 +2,12 @@
 
 cypress-live-reporter fills a database; the dashboard is yours to build. This
 guide covers the queries and widgets for a live view — whether you build it in
-ToolJet, Grafana, Retool, or plain HTML.
+Canopy, Grafana, Retool, or plain HTML.
 
 - [Two working references](#two-working-references)
 - [The queries](#the-queries)
 - [Rendering artifacts](#rendering-artifacts)
-- [Building it in ToolJet](#building-it-in-tooljet)
+- [Building it in Canopy](#building-it-in-canopy)
 - [Design notes](#design-notes)
 
 ---
@@ -24,8 +24,8 @@ You don't have to start from scratch:
    ```
    Read it as the canonical example of how to consume every view.
 
-2. **`demo/tjai-dashboard-prompt.md`** — a self-contained prompt (schema + real
-   sample rows) you can paste into ToolJet's AI app builder to scaffold the app.
+2. **`demo/canopy-dashboard-prompt.md`** — a self-contained prompt (schema + real
+   sample rows) you can paste into Canopy's AI app builder to scaffold the app.
 
 ## The queries
 
@@ -94,9 +94,9 @@ that runs `querySelectorAll` against the iframe and outlines matches — that tu
 the snapshot into a poor-man's Test Replay. (In s3 mode, `fetch(artifact_url)`
 returns plain HTML — the `.html.gz` is served with `Content-Encoding: gzip`.)
 
-## Building it in ToolJet
+## Building it in Canopy
 
-1. Connect your Postgres (the database behind `CLR_DB`) as a ToolJet datasource.
+1. Connect your Postgres (the database behind `CLR_DB`) as a Canopy datasource.
 2. Add the four queries above; set each to auto-refresh (2–3s).
 3. Lay out:
    - **Table** bound to the runs query (left). Its `selectedRow.run_id` feeds the others.
@@ -106,14 +106,14 @@ returns plain HTML — the `.html.gz` is served with `Content-Encoding: gzip`.)
    - **Custom Component** for the DOM viewer (pako + sandboxed iframe + selector tester).
    - **Custom Component** (or a styled table) for the command-log timeline.
 
-The full ToolJet walkthrough — with the exact widget bindings and the DOM-viewer
+The full Canopy walkthrough — with the exact widget bindings and the DOM-viewer
 component source — lives in the
-[configuration reference](../tools/cypress-live-reporter/README.md#tooljet-dashboard-guide),
+[configuration reference](../tools/cypress-live-reporter/README.md#canopy-dashboard-guide),
 and the paste-ready AI prompt is in
-[demo/tjai-dashboard-prompt.md](../demo/tjai-dashboard-prompt.md).
+[demo/canopy-dashboard-prompt.md](../demo/canopy-dashboard-prompt.md).
 
-> Hosted ToolJet Cloud can't reach a `localhost` Postgres — use self-hosted
-> ToolJet or a tunnel when developing against the demo database.
+> Hosted Canopy Cloud can't reach a `localhost` Postgres — use self-hosted
+> Canopy or a tunnel when developing against the demo database.
 
 ## Design notes
 

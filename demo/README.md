@@ -28,13 +28,13 @@ npx cypress run
 
 Open http://localhost:4488 **before** starting the suite and watch runs, test
 states, spec progress, the raw event stream, and failure evidence (screenshot
-thumbnails + DOM snapshots) update on a 2s poll — the same queries a ToolJet
+thumbnails + DOM snapshots) update on a 2s poll — the same queries a Canopy
 dashboard would run.
 
 ## Watch it live
 
 While the run is going (or after), poll the views — this is exactly what a
-ToolJet dashboard would do on a 2–3s refresh:
+Canopy dashboard would do on a 2–3s refresh:
 
 ```sql
 SELECT * FROM clr_runs;

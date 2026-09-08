@@ -4,7 +4,7 @@
 
 > **This is the package reference** (install, config, event & dashboard details). For the project overview and the concept guides, start at the [root README](../../README.md) and [docs/](../../docs/): [Architecture](../../docs/ARCHITECTURE.md) · [Events](../../docs/EVENTS.md) · [CI](../../docs/CI.md) · [Dashboard](../../docs/DASHBOARD.md).
 
-Self-hosted live reporting for Cypress. Streams run/spec/test lifecycle events and failure evidence (screenshots + a serialized DOM snapshot) to **Postgres** or a **webhook**, so you can build a real-time dashboard (e.g. in ToolJet) on a free stack — a replacement for Cypress Cloud's live status and failure artifacts.
+Self-hosted live reporting for Cypress. Streams run/spec/test lifecycle events and failure evidence (screenshots + a serialized DOM snapshot) to **Postgres** or a **webhook**, so you can build a real-time dashboard (e.g. in Canopy) on a free stack — a replacement for Cypress Cloud's live status and failure artifacts.
 
 - **Zero-config**: two `require` lines + one Cypress env value (`CLR_DB` or `CLR_WEBHOOK`). Every feature defaults to **ON**.
 - **One config surface**: everything is read from Cypress `env` — `cypress.env.json`, the `env` block in `cypress.config.js`, or `CYPRESS_*` variables. No sidecar config file, no bespoke `process.env` contract.
@@ -230,7 +230,7 @@ Note: in postgres mode the `run_id` column is `uuid`, so the value must be UUID-
 
 ### Grouping runs by project
 
-`runId` is unique per run; `projectId` groups many runs under one human-readable project (e.g. `todos-web`, `tooljet-ce`). Set `CLR_PROJECT_ID` in the Cypress env — `cypress.env.json` locally, or `CYPRESS_CLR_PROJECT_ID` in CI:
+`runId` is unique per run; `projectId` groups many runs under one human-readable project (e.g. `todos-web`, `canopy-ce`). Set `CLR_PROJECT_ID` in the Cypress env — `cypress.env.json` locally, or `CYPRESS_CLR_PROJECT_ID` in CI:
 
 ```json
 // cypress.env.json
@@ -276,11 +276,11 @@ setupNodeEvents(on, config) {
 
 ---
 
-## ToolJet dashboard guide
+## Canopy dashboard guide
 
-Apply [`schema.sql`](./schema.sql), add your Postgres as a ToolJet datasource, and build one page with four queries — set each to **auto-refresh every 2–3 s**.
+Apply [`schema.sql`](./schema.sql), add your Postgres as a Canopy datasource, and build one page with four queries — set each to **auto-refresh every 2–3 s**.
 
-**Query 1 — runs list** (bind to a Table; `{{ }}` are ToolJet bindings):
+**Query 1 — runs list** (bind to a Table; `{{ }}` are Canopy bindings):
 
 ```sql
 SELECT run_id, status, branch, commit, machine, browser,

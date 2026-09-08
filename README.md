@@ -4,7 +4,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![docs](https://img.shields.io/badge/docs-rendered_page-F6B23D.svg)](https://emidhun.github.io/cypress-live-reporter/)
 
-**A free, self-hosted replacement for Cypress Cloud's live status and failure evidence.** Streams run / spec / test lifecycle events, a command log, screenshots, and DOM snapshots to **Postgres** or a **webhook** — so you can build a real-time test dashboard (e.g. in [ToolJet](https://tooljet.com)) on a stack you own.
+**A free, self-hosted replacement for Cypress Cloud's live status and failure evidence.** Streams run / spec / test lifecycle events, a command log, screenshots, and DOM snapshots to **Postgres** or a **webhook** — so you can build a real-time test dashboard (e.g. in Canopy) on a stack you own.
 
 > 📖 **[Open the interactive documentation →](https://emidhun.github.io/cypress-live-reporter/)** — quickstart, full config reference, and a live event stream.
 
@@ -85,7 +85,7 @@ Run your suite as normal (`npx cypress run`). If neither `CLR_DB` nor `CLR_WEBHO
 | **[Architecture & data model](./docs/ARCHITECTURE.md)** | How events flow browser → Node → sink, the identifier hierarchy (run / spec / test / attempt / artifact), the storage model, and reliability guarantees. **Start here to understand the system.** |
 | **[Event reference](./docs/EVENTS.md)** | Every event, exactly when it fires, and its payload — with a chronological timeline. |
 | **[CI/CD integration](./docs/CI.md)** | GitHub Actions / GitLab setup, how PR number + triggerer are captured, parallel runs, and the Postgres-in-CI recipe. |
-| **[Building the dashboard](./docs/DASHBOARD.md)** | The SQL views, the four dashboard queries, image + DOM widgets, the command-log panel, and the ToolJet AI prompt. |
+| **[Building the dashboard](./docs/DASHBOARD.md)** | The SQL views, the four dashboard queries, image + DOM widgets, the command-log panel, and the Canopy AI prompt. |
 | **[Configuration reference](./tools/cypress-live-reporter/README.md)** | Every config key, the everything-on-by-default rule, storage modes, and performance notes. |
 
 ---
