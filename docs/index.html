@@ -322,6 +322,33 @@
   }
   .v { color: var(--muted); font-size: 0.92rem; }
   .v code { font-family: var(--mono); font-size: 0.82em; color: var(--text); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
+  .req {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(246, 178, 61, 0.42);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  /* ---- config json examples ---- */
+  .examples { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 0 0 34px; }
+  .example .lbl {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   /* ---- identity model ---- */
   .id-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
@@ -404,6 +431,7 @@
   @media (max-width: 860px) {
     .hero-grid { grid-template-columns: 1fr; }
     .panels { grid-template-columns: 1fr; }
+    .examples { grid-template-columns: 1fr; }
     .id-grid { grid-template-columns: 1fr; }
     .kv-row { grid-template-columns: 1fr; gap: 4px; }
     .tl { grid-template-columns: 1fr; gap: 6px; }
@@ -509,14 +537,32 @@
   <div class="wrap">
     <p class="eyebrow"><span class="n">02</span> Configuration</p>
     <h2>One surface: the Cypress <code style="font-size:0.7em">env</code></h2>
-    <p class="section-lede">Everything is set in one place — <code>cypress.env.json</code>, the <code>env</code> block in <code>cypress.config.js</code>, or <code>CYPRESS_*</code> variables in CI (highest precedence). Everything is on by default; you only set keys to point at a sink or turn things off.</p>
+    <p class="section-lede">Everything is set in one place — <code>cypress.env.json</code>, the <code>env</code> block in <code>cypress.config.js</code>, or <code>CYPRESS_*</code> variables in CI (highest precedence). Every feature is on by default, so <strong style="color:var(--text)">the only thing you must set is a sink</strong>: <code>CLR_DB</code> (Postgres) or <code>CLR_WEBHOOK</code>. Everything else is optional.</p>
+
+    <div class="examples">
+      <div class="example">
+        <div class="lbl">cypress.env.json <span class="req">minimal · required only</span></div>
+<pre>{
+  <span class="c-key">"CLR_DB"</span>: <span class="c-str">"postgres://user:pass@host:5432/db"</span>
+}</pre>
+      </div>
+      <div class="example">
+        <div class="lbl">cypress.env.json <span style="color:var(--faint)">· typical</span></div>
+<pre>{
+  <span class="c-key">"CLR_DB"</span>: <span class="c-str">"postgres://user:pass@host:5432/db"</span>,
+  <span class="c-key">"CLR_PROJECT_ID"</span>: <span class="c-str">"todos-web"</span>,
+  <span class="c-key">"CLR_DOM_BACKTRACK"</span>: <span class="c-str">2</span>,
+  <span class="c-key">"CLR_CONSOLE_DEPTH"</span>: <span class="c-str">12</span>
+}</pre>
+      </div>
+    </div>
 
     <div class="panels">
       <div class="panel wide">
         <div class="panel-h"><span class="bar"></span> Connection &amp; identity</div>
         <div class="kv">
-          <div class="kv-row"><div class="k">CLR_DB</div><div class="v">Postgres connection string → <strong style="color:var(--text)">postgres mode</strong>.</div></div>
-          <div class="kv-row"><div class="k">CLR_WEBHOOK</div><div class="v">Webhook URL → webhook mode (used when <code>CLR_DB</code> is unset).</div></div>
+          <div class="kv-row"><div class="k">CLR_DB<span class="req">required · one of</span></div><div class="v">Postgres connection string → <strong style="color:var(--text)">postgres mode</strong>.</div></div>
+          <div class="kv-row"><div class="k">CLR_WEBHOOK<span class="req">required · one of</span></div><div class="v">Webhook URL → webhook mode (used when <code>CLR_DB</code> is unset).</div></div>
           <div class="kv-row"><div class="k">CLR_WEBHOOK_TOKEN</div><div class="v">Bearer token sent on webhook requests.</div></div>
           <div class="kv-row"><div class="k">CLR_RUN_ID<span class="def">random UUID</span></div><div class="v">Override the run id. The same value across machines merges shards into one run.</div></div>
           <div class="kv-row"><div class="k">CLR_PROJECT_ID</div><div class="v">Free-form id that groups many runs under one project, e.g. <code>todos-web</code>.</div></div>

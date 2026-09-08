@@ -105,11 +105,27 @@ CYPRESS_CLR_DB=postgres://…  CYPRESS_CLR_PROJECT_ID=todos-web
 
 Values may be JSON types (in `cypress.env.json`) or strings (from `CYPRESS_*` / `--env`); booleans and numbers are coerced either way.
 
+**Required:** exactly one sink — `CLR_DB` (Postgres) **or** `CLR_WEBHOOK`. Everything else is optional and on by default. A minimal and a typical `cypress.env.json`:
+
+```json
+// minimal — required only
+{ "CLR_DB": "postgres://user:pass@host:5432/db" }
+```
+```json
+// typical
+{
+  "CLR_DB": "postgres://user:pass@host:5432/db",
+  "CLR_PROJECT_ID": "todos-web",
+  "CLR_DOM_BACKTRACK": 2,
+  "CLR_CONSOLE_DEPTH": 12
+}
+```
+
 | Key | Default | Meaning |
 | --- | --- | --- |
 | **Connection & identity** | | |
-| `CLR_DB` | — | Postgres connection string → **postgres mode**. |
-| `CLR_WEBHOOK` | — | Webhook URL → **webhook mode** (used only when `CLR_DB` is unset). |
+| `CLR_DB` | — | **Required (one of).** Postgres connection string → **postgres mode**. |
+| `CLR_WEBHOOK` | — | **Required (one of).** Webhook URL → **webhook mode** (used only when `CLR_DB` is unset). |
 | `CLR_WEBHOOK_TOKEN` | — | Bearer token sent as `Authorization` on webhook requests. |
 | `CLR_RUN_ID` | random UUID | Override the run id. The **same** value across parallel machines merges them into one run (must be UUID-shaped in postgres mode). |
 | `CLR_PROJECT_ID` | — | Free-form id grouping many runs under one project (e.g. `todos-web`). See [Grouping runs by project](#grouping-runs-by-project). |
